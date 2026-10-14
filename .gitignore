@@ -1,0 +1,7 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.obsidian/
+.DS_Store
+CHANGELOG.md
