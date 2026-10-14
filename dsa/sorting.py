@@ -217,3 +217,120 @@ def benchmark_all(arr):
             "sorted_ok": _is_sorted(res),
         })
     return out
+
+def _is_sorted(a):
+    for i in range(1, len(a)):
+        if a[i - 1] > a[i]:
+            return False
+    return True
+
+def external_sort(arr, chunk_size=4):
+    """Chunked k-way merge, i.e. what a disk-bound external sort does.
+
+    Pass 0: split into ceil(n/chunk) runs; sort EACH RUN in memory (merge sort).
+    Pass 1..k: merge `fan_in` runs at a time into bigger runs using MinHeapPQ.
+    Returns trace of runs + passes (for the UI panel)."""
+    n = len(arr)
+    if n <= 1 or chunk_size < 2:
+        return {"chunks": [list(arr)], "passes": 0, "final": list(arr),
+                "timings": []}
+    stash = _stats()
+    chunks = []
+    for i in range(0, n, chunk_size):
+        chunks.append(merge_sort(arr[i:i + chunk_size], stash))
+    trace = {"chunks": chunks, "passes": 0, "timings": []}
+    runs = chunks
+    fan_in = chunk_size
+    while len(runs) > 1:
+        merged = []
+        for i in range(0, len(runs), fan_in):
+            group = runs[i:i + fan_in]
+            merged.append(_kway_merge(group, stash))
+            trace["timings"].append(len(group))
+        runs = merged
+        trace["passes"] += 1
+    trace["final"] = runs[0]
+    trace["comparisons_total"] = stash["comparisons"]
+    return trace
+
+def _kway_merge(runs, stats=None):
+    """MINHEAP k-way merge with (item, run_idx) entries. O(N log k)."""
+    s = stats or _stats()
+    pq = MinHeapPQ()
+    out = []
+    heads = [0] * len(runs)
+    for r in range(len(runs)):
+        if heads[r] < len(runs[r]):
+            pq.push(runs[r][heads[r]], r)
+            heads[r] += 1
+    while not pq.is_empty():
+        item, r = pq.pop_min()
+        out.append(item)
+
+        if heads[r] < len(runs[r]):
+            pq.push(runs[r][heads[r]], r)
+            heads[r] += 1
+    return out
+
+def linear_search(arr, target):
+    """Scan left->right. O(n). Returns (index, steps) or (-1, steps)."""
+    steps = 0
+    for i in range(len(arr)):
+        steps += 1
+        if arr[i] == target:
+            return i, steps
+    return -1, steps
+
+def binary_search(arr, target, pre_sorted=True):
+    """Sorted-array halving search. O(log n). Returns (index, steps).
+
+    When pre_sorted is False (default UI doesn't do it), a merge sort runs
+    first and that cost is reported via the returned steps tuple."""
+    a = arr
+    steps = 0
+    if not pre_sorted:
+        a = merge_sort(arr)
+    lo, hi = 0, len(a) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        steps += 1
+        if a[mid] == target:
+            return mid, steps
+        s_cmp = a[mid] < target
+        if s_cmp:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1, steps
+
+def merge_sort_orders(orders):
+    """Stable merge sort on order objects by (priority asc, weight desc).
+    Returns the sorted list of order records; O(n log n)."""
+    return _ms_orders(list(orders))
+
+def _ms_orders(a):
+    n = len(a)
+    if n <= 1:
+        return a
+    mid = n // 2
+    left = _ms_orders(a[:mid])
+    right = _ms_orders(a[mid:])
+    out, i, j = [], 0, 0
+    while i < len(left) and j < len(right):
+        li, rj = left[i], right[j]
+        lp, rp = li["priority"], rj["priority"]
+        lc = -li["weight"]
+        rc = -rj["weight"]
+        if (lp, lc) <= (rp, rc):
+            out.append(li)
+            i += 1
+        else:
+            out.append(rj)
+            j += 1
+    while i < len(left):
+        out.append(left[i])
+        i += 1
+    while j < len(right):
+        out.append(right[j])
+        j += 1
+    return out
