@@ -178,3 +178,83 @@ class HeaderLinkedList:
     def __init__(self):
         self.header = HeaderNode()
         self._tail = self.header
+
+    def push_back(self, v):
+        node = SLNode(v)
+        self._tail.nxt = node
+        self._tail = node
+        self.header.count += 1
+
+    def delete_val(self, v):
+        """Unlink first match; prev pointer tracing from the header cell."""
+        prev, cur = self.header, self.header.nxt
+        while cur:
+            if cur.val == v:
+                prev.nxt = cur.nxt
+                if cur is self._tail:
+                    self._tail = prev
+                self.header.count -= 1
+                return True
+            prev, cur = cur, cur.nxt
+        return False
+
+    def __len__(self):
+        return self.header.count
+
+    def to_list(self):
+        return [node.val for node in iter_list(self.header.nxt)]
+
+def iter_list(start):
+    cur = start
+    while cur:
+        yield cur
+        cur = cur.nxt
+
+class CLNode:
+    """Circular linked-list node (same SLNode shape, but .nxt cycles)."""
+    __slots__ = ("val", "nxt")
+
+    def __init__(self, val, nxt=None):
+        self.val = val
+        self.nxt = nxt
+
+class CircularLinkedList:
+    """Singly-linked CIRCULAR list (tail.nxt loops back to head).
+
+    Used as THE DELIVERY LOOP: route stops joined into a ring, so the driver
+    can keep cycling the route forever. O(1) insert_front/back with tail ptr;
+    to_list walks exactly n nodes then stops (no infinite loop)."""
+
+    def __init__(self, vals=()):
+        self.tail = None
+        self.n = 0
+        for v in vals:
+            self.push_back(v)
+
+    def push_back(self, v):
+        node = CLNode(v)
+        if self.tail is None:
+            node.nxt = node
+            self.tail = node
+        else:
+            node.nxt = self.tail.nxt
+            self.tail.nxt = node
+            self.tail = node
+        self.n += 1
+
+    def push_front(self, v):
+        node = CLNode(v)
+        if self.tail is None:
+            node.nxt = node
+            self.tail = node
+        else:
+            node.nxt = self.tail.nxt
+            self.tail.nxt = node
+        self.n += 1
+
+    def rotate(self, k=1):
+        """Advance head k positions along the ring (like turning the route wheel)."""
+        if self.n == 0:
+            return
+        for _ in range(k % self.n):
+            self.tail = self.tail.nxt
