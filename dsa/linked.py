@@ -258,3 +258,152 @@ class CircularLinkedList:
             return
         for _ in range(k % self.n):
             self.tail = self.tail.nxt
+
+    def delete_val(self, v):
+        """Remove first node with val by walking the ring once. O(n)."""
+        if self.n == 0:
+            return False
+        cur = self.tail.nxt
+        prev = self.tail
+        for _ in range(self.n):
+            if cur.val == v:
+                if cur is prev:
+                    self.tail = None
+                else:
+                    prev.nxt = cur.nxt
+                    if cur is self.tail:
+                        self.tail = prev
+                self.n -= 1
+                return True
+            prev, cur = cur, cur.nxt
+        return False
+
+    def to_list(self):
+        out = []
+        if self.n == 0:
+            return out
+        cur = self.tail.nxt
+        for _ in range(self.n):
+            out.append(cur.val)
+            cur = cur.nxt
+        return out
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        v = self.to_list()
+        for x in v:
+            yield x
+
+class PolyTerm:
+    """One linked-list cell of a polynomial: coeff * x^exp, exp >= 0, coeff != 0."""
+    __slots__ = ("coeff", "exp", "nxt")
+
+    def __init__(self, coeff, exp, nxt=None):
+        self.coeff = coeff
+        self.exp = exp
+        self.nxt = nxt
+
+class Polynomial:
+    """Sparse polynomial as a singly linked list, kept sorted by DESCENDING exp
+    (insertion sorts by exponent so no list.sort is needed).
+
+    add O(m+n), multiply O(m*n) with merge-normalisation, evaluate O(m).
+    Terms with zero net coefficient are dropped (e.g. x*x - x*x).
+    Used by the app as the transport COST MODEL: cost(d) = a*d^2 + b*d + c.
+    """
+
+    def __init__(self, terms=()):
+        self.head = None
+        self.n_terms = 0
+        for c, e in terms:
+            self.add_term(float(c), int(e))
+
+    def add_term(self, coeff, exp):
+        """Insert / accumulate a term in descending-exponent order. O(m)."""
+        if coeff == 0:
+            return
+        if self.head is None or exp > self.head.exp:
+            self.head = PolyTerm(coeff, exp, self.head)
+            self.n_terms += 1
+            return
+        prev, cur = None, self.head
+        while cur is not None and cur.exp > exp:
+            prev, cur = cur, cur.nxt
+        if cur is not None and cur.exp == exp:
+            cur.coeff += coeff
+            if cur.coeff == 0:
+                if prev is None:
+                    self.head = cur.nxt
+                else:
+                    prev.nxt = cur.nxt
+                self.n_terms -= 1
+        else:
+            new = PolyTerm(coeff, exp, cur)
+            if prev is None:
+                self.head = new
+            else:
+                prev.nxt = new
+            self.n_terms += 1
+
+    def add(self, other):
+        """Term-wise addition: walk both sorted lists once. O(m+n)."""
+        result = Polynomial()
+        pa, pb = self.head, other.head
+        while pa or pb:
+            if pb is None or (pa and pa.exp > pb.exp):
+                result.add_term(pa.coeff, pa.exp)
+                pa = pa.nxt
+            elif pa is None or pb.exp > pa.exp:
+                result.add_term(pb.coeff, pb.exp)
+                pb = pb.nxt
+            else:
+                s = pa.coeff + pb.coeff
+                if s != 0:
+                    result.add_term(s, pa.exp)
+                pa, pb = pa.nxt, pb.nxt
+        return result
+
+    def multiply(self, other):
+        """Every term of self * every term of other; add_term keeps order. O(m*n*k)."""
+        result = Polynomial()
+        pa = self.head
+        while pa:
+            pb = other.head
+            while pb:
+                result.add_term(pa.coeff * pb.coeff, pa.exp + pb.exp)
+                pb = pb.nxt
+            pa = pa.nxt
+        return result
+
+    def evaluate(self, x):
+        """Straightforward pow-based evaluation (viva clarity). O(m)."""
+        total, cur = 0.0, self.head
+        while cur:
+            p = 1.0
+            for _ in range(cur.exp):
+                p *= x
+            total += cur.coeff * p
+            cur = cur.nxt
+        return total
+
+    def terms(self):
+        out, cur = [], self.head
+        while cur:
+            out.append((cur.coeff, cur.exp))
+            cur = cur.nxt
+        return out
+
+    def to_display(self):
+        """'3.0x^2 + 2.0x + 1.0' style string (for the UI cost panel)."""
+        parts = []
+        for c, e in self.terms():
+            cs = ("%g" % c)
+            if e == 0:
+                parts.append(cs)
+            elif e == 1:
+                parts.append("%sx" % cs if c != 1 else "x")
+            else:
+                parts.append(("%sx^%d" % (cs, e)) if c != 1 else ("x^%d" % e))
+        return " + ".join(parts).replace(" + -", " - ")
