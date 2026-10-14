@@ -164,3 +164,169 @@ class MinHeapPQ:
         return 2 * i + 1
 
     @staticmethod
+    def _r(i):
+        return 2 * i + 2
+
+    @staticmethod
+    def _p(i):
+        return (i - 1) // 2
+
+    def push(self, key, value=None):
+        item = key if value is None else [key, value]
+        self._h.append(item)
+        i = len(self._h) - 1
+        while i > 0:
+            p = self._p(i)
+            if self._less(self._h[i], self._h[p]):
+                self._h[i], self._h[p] = self._h[p], self._h[i]
+                i = p
+            else:
+                break
+
+    def _less(self, x, y):
+        """Compare two entries on KEY only; exact key ties keep insert order
+        (values are never compared, so dict-valued entries cannot explode)."""
+        self.comparisons += 1
+        if type(x) is list and type(y) is list:
+            return x[0] < y[0]
+        return x < y
+
+    def pop_min(self):
+        if self.is_empty():
+            raise IndexError("pop from empty heap")
+        top = self._h[0]
+        last = self._h.pop()
+        if self._h:
+            self._h[0] = last
+            self._sift_down(0, len(self._h))
+        return top if type(top) is not list else top
+
+    def _sift_down(self, i, n):
+        while True:
+            l, r = self._l(i), self._r(i)
+            best = i
+            if l < n and self._less(self._h[l], self._h[best]):
+                best = l
+            if r < n and self._less(self._h[r], self._h[best]):
+                best = r
+            if best == i:
+                return
+            self._h[i], self._h[best] = self._h[best], self._h[i]
+            i = best
+
+    def peek(self):
+        if self.is_empty():
+            return None
+        return self._h[0]
+
+class SortedListPQ:
+    """Priority queue over a SORTED SINGLY LINKED LIST (ascending by key).
+
+    insert O(n) walk + O(1) unlink-in; pop_min O(1); peek O(1). Space O(n).
+    Contrast with MinHeapPQ (push O(log n), pop O(log n)); hand-wavy alternative.
+    """
+
+    class _Node:
+        __slots__ = ("key", "val", "nxt")
+
+        def __init__(self, key, val, nxt=None):
+            self.key = key
+            self.val = val
+            self.nxt = nxt
+
+    def __init__(self):
+        self._head = None
+        self._n = 0
+        self.comparisons = 0
+
+    def push(self, key, val=None):
+        self._n += 1
+        if self._head is None:
+            self._head = self._Node(key, val)
+            return
+
+        if key < self._head.key:
+            self._head = self._Node(key, val, self._head)
+            return
+        cur = self._head
+        while cur.nxt is not None:
+            self.comparisons += 1
+            if key < cur.nxt.key:
+                break
+            cur = cur.nxt
+        cur.nxt = self._Node(key, val, cur.nxt)
+
+    def pop_min(self):
+        if self._head is None:
+            raise IndexError("pop from empty PQ")
+        node, self._head = self._head, self._head.nxt
+        self._n -= 1
+        return node.key if node.val is None else (node.key, node.val)
+
+    def peek(self):
+        if self._head is None:
+            return None
+        return self._head.key if self._head.val is None else (self._head.key, self._head.val)
+
+    def __len__(self):
+        return self._n
+
+    def is_empty(self):
+        return self._head is None
+
+class CircularQueue:
+    """Fixed-capacity circular (ring) queue -- array indexes wrap with %.
+
+    front O(1), enqueue/rear O(1); used for DRIVER ROUND-ROBIN and BFS fringe.
+    Full condition: (rear+1) % cap == front (one wasted slot keeps it simple).
+    """
+
+    def __init__(self, capacity=16):
+        self.cap = max(2, capacity)
+        self._a = [None] * self.cap
+        self.front = 0
+        self.rear = 0
+
+    def is_empty(self):
+        return self.front == self.rear
+
+    def is_full(self):
+        return (self.rear + 1) % self.cap == self.front
+
+    def enqueue(self, item):
+        if self.is_full():
+            raise OverflowError("circular queue full (cap=%d)" % (self.cap - 1))
+        self._a[self.rear] = item
+        self.rear = (self.rear + 1) % self.cap
+
+    def dequeue(self):
+        if self.is_empty():
+            raise IndexError("circular queue empty")
+        item = self._a[self.front]
+        self._a[self.front] = None
+        self.front = (self.front + 1) % self.cap
+        return item
+
+    def peek(self):
+        if self.is_empty():
+            return None
+        return self._a[self.front]
+
+    def snapshot(self):
+        """Items currently in queue front->rear (for UI)."""
+        out, i = [], self.front
+        while i != self.rear:
+            out.append(self._a[i])
+            i = (i + 1) % self.cap
+        return out
+
+    def __len__(self):
+        c = self.rear - self.front
+        return c if c >= 0 else c + self.cap
+
+class ArrayDeque:
+    """Array-backed deque with blocked-ends index arithmetic; superset of queue+stack.
+
+    push_front / push_back / pop_front / pop_back all O(1) amortised
+    (plain-list DoublingArray {grow 2x at back, shrink <1/4} reused).
+    """
