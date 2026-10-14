@@ -59,3 +59,78 @@ class Trie:
             if node is None:
                 return None
         return node
+
+    def insert(self, word):
+        """Insert a key; ALSO add standalone word-tokens so prefix 'sta' finds
+        'Central Station'. insert O(L) per call."""
+        key = word.lower()
+        node = self.root
+        for ch in key:
+            i = self._idx(ch)
+            if node.children[i] is None:
+                node.children[i] = TrieNode()
+            node = node.children[i]
+        node.word = word
+        if not node.is_word:
+            node.is_word = True
+            self.n_words += 1
+
+    def search(self, word):
+        node = self._walk(word.lower())
+        return node is not None and node.is_word
+
+    def startswith(self, prefix):
+        return self._walk(prefix.lower()) is not None
+
+    def delete(self, word):
+        """Bottom-up prune: remove nodes made empty; keep shared prefixes. O(L)."""
+        key = word.lower()
+        path = []
+        node = self.root
+        for ch in key:
+            i = self._idx(ch)
+            node = node.children[i]
+            if node is None:
+                return False
+            path.append((i, node))
+        if not node.is_word:
+            return False
+        node.is_word = False
+        node.word = None
+        self.n_words -= 1
+
+        parent = self.root
+        for i in range(len(path) - 1, -1, -1):
+            idx_, dead = path[i]
+            if dead.is_word or any(dead.children):
+                return True
+            parent = self.root if i == 0 else path[i - 1][1]
+            parent.children[idx_] = None
+        return True
+
+    def __len__(self):
+        return self.n_words
+
+    def autocomplete(self, prefix, limit=8):
+        """Words starting with prefix: walk to prefix node O(P), then collect
+        up to `limit` matches by depth-first walk O(P + k) on the sub-trie."""
+        node = self._walk(prefix.lower())
+        if node is None:
+            return []
+        out, stack = [], [(node, prefix.lower())]
+        while stack and len(out) < limit:
+            cur, key = stack.pop()
+            if cur.is_word:
+                out.append(cur.word)
+            for i in range(39, -1, -1):
+                if cur.children[i] is not None:
+                    stack.append((cur.children[i], key + self._char(i)))
+        return out
+
+    @staticmethod
+    def _char(i):
+        if i <= 25:
+            return chr(ord("a") + i)
+        if i <= 35:
+            return chr(ord("0") + i - 26)
+        return (" ", "'", ".", "-")[i - 36]
