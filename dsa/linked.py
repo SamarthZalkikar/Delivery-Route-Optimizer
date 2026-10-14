@@ -94,3 +94,87 @@ class DLNode:
         self.val = val
         self.prev = prev
         self.nxt = nxt
+
+class DoublyLinkedList:
+    """DLL with head+tail. push_front/back, insert_after, delete_node O(1);
+    search O(n). Used for order-activity history where we walk backwards."""
+
+    def __init__(self, vals=()):
+        self.head = None
+        self.tail = None
+        self.n = 0
+        for v in vals:
+            self.push_back(v)
+
+    def push_front(self, v):
+        node = DLNode(v, None, self.head)
+        if self.head:
+            self.head.prev = node
+        else:
+            self.tail = node
+        self.head = node
+        self.n += 1
+
+    def push_back(self, v):
+        node = DLNode(v, self.tail, None)
+        if self.tail:
+            self.tail.nxt = node
+        else:
+            self.head = node
+        self.tail = node
+        self.n += 1
+
+    def insert_after(self, node, v):
+        new = DLNode(v, node, node.nxt)
+        if node.nxt:
+            node.nxt.prev = new
+        else:
+            self.tail = new
+        node.nxt = new
+        self.n += 1
+
+    def delete_node(self, node):
+        if node.prev:
+            node.prev.nxt = node.nxt
+        else:
+            self.head = node.nxt
+        if node.nxt:
+            node.nxt.prev = node.prev
+        else:
+            self.tail = node.prev
+        self.n -= 1
+
+    def to_list(self):
+        out, cur = [], self.head
+        while cur:
+            out.append(cur.val)
+            cur = cur.nxt
+        return out
+
+    def to_list_reverse(self):
+        out, cur = [], self.tail
+        while cur:
+            out.append(cur.val)
+            cur = cur.prev
+        return out
+
+    def __len__(self):
+        return self.n
+
+class HeaderNode:
+    """Header (dummy) node variant -- header lists carry a dedicated head cell
+    that never holds data (optionally a count). Simplifies edge-case code and
+    is the classic sparse-matrix row struct."""
+    __slots__ = ("count", "nxt")
+
+    def __init__(self):
+        self.count = 0
+        self.nxt = None
+
+class HeaderLinkedList:
+    """Header linked list (GROUND variant: header holds no info) with an O(1)
+    counter. push_back O(1), delete_val O(n), to_list O(n)."""
+
+    def __init__(self):
+        self.header = HeaderNode()
+        self._tail = self.header
