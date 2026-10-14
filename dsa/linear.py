@@ -330,3 +330,116 @@ class ArrayDeque:
     push_front / push_back / pop_front / pop_back all O(1) amortised
     (plain-list DoublingArray {grow 2x at back, shrink <1/4} reused).
     """
+
+    def __init__(self):
+        self._a = []
+        self._front = 0
+        self._n = 0
+
+    def _live(self, i):
+        return (self._front + i) % len(self._a)
+
+    def push_back(self, x):
+        self._push_tail(x)
+
+    def push_front(self, x):
+        self._push_head(x)
+
+    def pop_back(self):
+        return self._pop_tail()
+
+    def pop_front(self):
+        return self._pop_head()
+
+    def _push_tail(self, x):
+        if self._n == len(self._a):
+            self._grow_back(True, x)
+        else:
+            self._a[self._live(self._n)] = x
+        self._n += 1
+
+    def _push_head(self, x):
+        if self._n == len(self._a):
+            self._grow_back(True, None)
+        self._front = (self._front - 1) % len(self._a)
+        self._a[self._front] = x
+        self._n += 1
+
+    def _pop_head(self):
+        if self._n == 0:
+            raise IndexError("pop from empty deque")
+        x = self._a[self._front]
+        self._a[self._front] = None
+        self._front = (self._front + 1) % len(self._a)
+        self._n -= 1
+        self._maybe_shrink()
+        return x
+
+    def _pop_tail(self):
+        if self._n == 0:
+            raise IndexError("pop from empty deque")
+        x = self._a[self._live(self._n - 1)]
+        self._a[self._live(self._n - 1)] = None
+        self._n -= 1
+        self._maybe_shrink()
+        return x
+
+    def _grow_back(self, at_back, x):
+        new = [None] * (max(8, len(self._a) * 2))
+        for i in range(self._n):
+            new[i] = self._a[self._live(i)]
+        self._a, self._front = new, 0
+        if x is not None:
+            self._a[self._n] = x
+
+    def _maybe_shrink(self):
+        if len(self._a) >= 16 and self._n <= len(self._a) // 4:
+            self._grow_back(False, None)
+
+    def __len__(self):
+        return self._n
+
+    def is_empty(self):
+        return self._n == 0
+
+    def peek_front(self):
+        return None if self._n == 0 else self._a[self._front]
+
+    def peek_back(self):
+        return None if self._n == 0 else self._a[self._live(self._n - 1)]
+
+class DequeIR:
+    """INPUT-RESTRICTED deque: insertions ONLY at the rear; deletions at both ends.
+
+    push_front() is deliberately FORBIDDEN (raises). All other ops match ArrayDeque.
+    """
+
+    def __init__(self):
+        self._q = ArrayDeque()
+
+    def push_back(self, x):
+        self._q.push_back(x)
+
+    def _forbidden(self, op):
+        raise TypeError("Input-restricted deque: cannot %s" % op)
+
+    pop_front = property(lambda self: self._q.pop_front)
+    pop_back = property(lambda self: self._q.pop_back)
+
+class DequeOR:
+    """OUTPUT-RESTRICTED deque: deletions ONLY at the front; insertions at both ends."""
+
+    def __init__(self):
+        self._q = ArrayDeque()
+
+    def push_front(self, x):
+        self._q.push_front(x)
+
+    def push_back(self, x):
+        self._q.push_back(x)
+
+    def pop_front(self):
+        return self._q.pop_front()
+
+    def _forbidden(self, op):
+        raise TypeError("Output-restricted deque: cannot %s pop from the back" % op)
