@@ -64,3 +64,59 @@ class _ChainNode:
         self.key = key
         self.value = value
         self.nxt = nxt
+
+class HashTableChaining:
+    """Separate chaining hash table. Each bucket is a SINGLY LINKED LIST.
+
+    insert/lookup/delete: O(1) expected, O(n) worst (all keys in one chain);
+    collisions counted every insert that lands on a NON-empty bucket.
+    """
+
+    def __init__(self, size=11, hashfn=hash_division):
+        self.size = size
+        self.hashfn = hashfn
+        self.buckets = [None] * size
+        self.n_keys = 0
+        self.collisions = 0
+
+    def _bucket(self, key):
+        return self.hashfn(key, self.size)
+
+    def insert(self, key, value):
+        """Head-insert into the chain (classic textbook style). O(1)."""
+        b = self._bucket(key)
+        node = self.buckets[b]
+        if node is not None:
+            self.collisions += 1
+            cur = node
+            while cur:
+                if cur.key == key:
+                    cur.value = value
+                    return
+                cur = cur.nxt
+        self.buckets[b] = _ChainNode(key, value, self.buckets[b])
+        self.n_keys += 1
+
+    def lookup(self, key):
+        b = self._bucket(key)
+        cur, steps = self.buckets[b], 1
+        while cur:
+            if cur.key == key:
+                return cur.value, steps
+            steps += 1
+            cur = cur.nxt
+        return None, steps
+
+    def delete(self, key):
+        b = self._bucket(key)
+        prev, cur = None, self.buckets[b]
+        while cur:
+            if cur.key == key:
+                if prev is None:
+                    self.buckets[b] = cur.nxt
+                else:
+                    prev.nxt = cur.nxt
+                self.n_keys -= 1
+                return True
+            prev, cur = cur, cur.nxt
+        return False
