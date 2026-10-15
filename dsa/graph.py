@@ -180,3 +180,80 @@ def dijkstra(graph, source, target=None):
                     prev[v] = u
                     pq.push(nd, v)
     return dist, prev
+
+def shortest_path(graph, source, target):
+    """Rebuild the s->t path by prev[]s and REVERSE it with DynStack (so the
+    undo-stack pattern shows up here too). O(E log V)."""
+    dist, prev = dijkstra(graph, source, target)
+    if dist[target] == float("inf"):
+        return None, None, None
+    stack = DynStack()
+    node = target
+    while node != -1:
+        stack.push(node)
+        node = prev[node]
+    path = stack.items()[::-1]
+    return path, dist[target], dist
+
+def dijkstra_all_pairs(graph):
+    """Distance matrix given by repeated Dijkstra (n runs). O(V E log V)."""
+    dist, prevmap = [], []
+    for s in range(graph.n):
+        d, p = dijkstra(graph, s)
+        dist.append(d)
+        prevmap.append(p)
+    return dist, prevmap
+
+def path_via_prev(prevmap, s, t):
+    """Trace t back to s using prevmap[s]; returns edge-id path t->s reversed."""
+    stack = DynStack()
+    node = t
+    while node != -1:
+        stack.push(node)
+        node = prevmap[s][node]
+    return stack.items()[::-1]
+
+def prim_mst(graph, start=0):
+    """Prim's algorith with MinHeapPQ + visited flags, lazy deletion.
+    Returns (mst_edges, total_weight). O(E log V)."""
+    INF = float("inf")
+    best_w = [INF] * graph.n
+    best_from = [-1] * graph.n
+    in_tree = [False] * graph.n
+    pq = MinHeapPQ()
+    best_w[start] = 0
+    pq.push(0, start)
+    total = 0.0
+    edges = []
+    while not pq.is_empty():
+        w, u = pq.pop_min()
+        if in_tree[u]:
+            continue
+        in_tree[u] = True
+        total += w
+        if best_from[u] != -1:
+            edges.append([best_from[u], u, w])
+        for e in graph.adjacency[u]:
+            v, wv = e[0], e[1]
+            if not in_tree[v] and wv < best_w[v]:
+                best_w[v] = wv
+                best_from[v] = u
+                pq.push(wv, v)
+    if len(edges) != graph.n - 1:
+        return edges, None
+    return edges, total
+
+def kruskal_mst(graph):
+    """Sort edges by weight (insertion sort), accept via DSU. O(E^2)+E a(V)."""
+    dsu = DSU(graph.n)
+    total = 0.0
+    edges = []
+    for u, v, w in graph.edges_sorted_by_weight():
+        if dsu.union(u, v):
+            edges.append([u, v, w])
+            total += w
+            if len(edges) == graph.n - 1:
+                break
+    if len(edges) != graph.n - 1:
+        return edges, None
+    return edges, total
