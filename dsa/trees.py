@@ -395,3 +395,180 @@ class BTree:
     splits, search O(t log_t n), DELETE with all borrow/merge cases.
     WHY databases love it: one node covers a big DISK BLOCK, so fan-out t>=64
     means tiny height (a million rows is 3-4 levels) => few random reads."""
+
+    def __init__(self, t=3):
+        self.t = t
+        self.root = BTreeNode(leaf=True)
+        self.n = 0
+
+    def search(self, key):
+        node, steps = self.root, 0
+        while True:
+            steps += 1
+            i = _bsearch_keys(node.keys, key)
+            if i < len(node.keys) and node.keys[i] == key:
+                return (node.vals[i], steps)
+            if node.leaf:
+                return (None, steps)
+            node = node.children[i]
+
+    def insert(self, key, val=None):
+        r = self.root
+        if len(r.keys) == 2 * self.t - 1:
+            s = BTreeNode(leaf=False)
+            s.children.append(self.root)
+            _split_child(s, 0, self.t)
+            self.root = s
+            _insert_nonfull(s, key, val, self.t)
+        else:
+            _insert_nonfull(r, key, val, self.t)
+        self.n += 1
+
+    def delete(self, key):
+        """Full CLRS-style delete (leaf trim, internal borrow/merge, descent)."""
+        if self.search(key)[0] is None:
+            return False
+        _btree_delete(self.root, key, self.t)
+        if len(self.root.keys) == 0 and not self.root.leaf:
+            self.root = self.root.children[0]
+        self.n -= 1
+        return True
+
+    def traversal(self):
+        """Depth-first LEFT-TO-RIGHT scan of keys (B-tree 'inorder')."""
+        out = []
+        _walk_btree(self.root, out)
+        return out
+
+def _bsearch_keys(keys, key):
+    """First index i with keys[i] >= key (linear scan, hand-written)."""
+    i = 0
+    while i < len(keys) and keys[i] < key:
+        i += 1
+    return i
+
+def _split_child(x, i, t):
+    y = x.children[i]
+    z = BTreeNode(leaf=y.leaf)
+    mid = t - 1
+    for k in range(mid + 1, len(y.keys)):
+        z.keys.append(y.keys[k])
+        z.vals.append(y.vals[k])
+    if not y.leaf:
+        for k in range(mid + 1, len(y.children)):
+            z.children.append(y.children[k])
+    hm, hv = y.keys[mid], y.vals[mid]
+    del y.keys[mid:]
+    del y.vals[mid:]
+    if not y.leaf:
+        del y.children[mid + 1:]
+    x.keys.insert(i, hm)
+    x.vals.insert(i, hv)
+    x.children.insert(i + 1, z)
+
+def _insert_nonfull(x, key, val, t):
+    i = len(x.keys) - 1
+    if x.leaf:
+        while i >= 0 and x.keys[i] > key:
+            i -= 1
+        if i >= 0 and x.keys[i] == key:
+            x.vals[i] = val
+            return
+        x.keys.insert(i + 1, key)
+        x.vals.insert(i + 1, val)
+        return
+    while i >= 0 and x.keys[i] > key:
+        i -= 1
+    if i >= 0 and x.keys[i] == key:
+        x.vals[i] = val
+        return
+    i += 1
+    if len(x.children[i].keys) == 2 * t - 1:
+        _split_child(x, i, t)
+        if key > x.keys[i]:
+            i += 1
+        elif key == x.keys[i]:
+            x.vals[i] = val
+            return
+    _insert_nonfull(x.children[i], key, val, t)
+
+def _btree_delete(x, key, t):
+    """Recursive delete with CLRS cases (leaf trim / borrow / merge)."""
+    i = _bsearch_keys(x.keys, key)
+    found = i < len(x.keys) and x.keys[i] == key
+    if found:
+        if x.leaf:
+            x.keys.pop(i)
+            x.vals.pop(i)
+            return
+
+        if len(x.children[i].keys) >= t:
+            k = _bt_max(x.children[i])
+            x.keys[i] = k
+            _btree_delete(x.children[i], k, t)
+            return
+        if len(x.children[i + 1].keys) >= t:
+            k = _bt_min(x.children[i + 1])
+            x.keys[i] = k
+            _btree_delete(x.children[i + 1], k, t)
+            return
+        _bt_merge_children(x, i, t)
+        _btree_delete(x.children[i], key, t)
+        return
+    if x.leaf:
+        return
+
+    if len(x.children[i].keys) < t:
+        _bt_fill_child(x, i, t)
+
+    i = _bsearch_keys(x.keys, key)
+    _btree_delete(x.children[min(i, len(x.children) - 1)], key, t)
+
+def _bt_max(x):
+    while not x.leaf:
+        x = x.children[-1]
+    return x.keys[-1]
+
+def _bt_min(x):
+    while not x.leaf:
+        x = x.children[0]
+    return x.keys[0]
+
+def _bt_merge_children(x, i, t):
+    """Fold child[i], keys[i], child[i+1] into child[i]; drop the key."""
+    y, z = x.children[i], x.children[i + 1]
+    y.keys.append(x.keys[i])
+    y.vals.append(x.vals[i])
+    for k in range(len(z.keys)):
+        y.keys.append(z.keys[k])
+        y.vals.append(z.vals[k])
+    for k in range(len(z.children)):
+        y.children.append(z.children[k])
+    x.keys.pop(i)
+    x.vals.pop(i)
+    x.children.pop(i + 1)
+
+def _bt_fill_child(x, i, t):
+    """Give child[i] a key: borrow from a rich sibling, else merge down."""
+    if i != 0 and len(x.children[i - 1].keys) >= t:
+        _bt_borrow_prev(x, i)
+    elif i != len(x.keys) and len(x.children[i + 1].keys) >= t:
+        _bt_borrow_next(x, i)
+    else:
+        if i != len(x.keys):
+            _bt_merge_children(x, i, t)
+        else:
+            _bt_merge_children(x, i - 1, t)
+
+def _bt_borrow_prev(x, i):
+    """Pull the biggest key of the LEFT sibling across x.keys[i-1]."""
+    child, sib = x.children[i], x.children[i - 1]
+    child.keys.insert(0, x.keys[i - 1])
+    child.vals.insert(0, x.vals[i - 1])
+    if not sib.leaf:
+        child.children.insert(0, sib.children[-1])
+        sib.children.pop()
+    x.keys[i - 1] = sib.keys[-1]
+    x.vals[i - 1] = sib.vals[-1]
+    sib.keys.pop()
+    sib.vals.pop()
