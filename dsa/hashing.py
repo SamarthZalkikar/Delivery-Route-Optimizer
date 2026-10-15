@@ -156,3 +156,84 @@ class HashTableOpen:
     def _h2(self, key):
         """Secondary hash for double hashing (any odd number < size, != 1..0)."""
         return 1 + (self.hashfn(key, self.size - 1))
+
+    def _probe(self, key, attempt):
+        h = self._home(key)
+        if self.resolution == "linear":
+            return (h + attempt) % self.size
+        if self.resolution == "quadratic":
+            return (h + attempt * attempt) % self.size
+
+        return (h + attempt * self._h2(key)) % self.size
+
+    def insert(self, key, value):
+        """First-fit probe; TOMBSTONE slots are reusable. Fails when full. O(size)."""
+        if self.size == self.n_keys + self._tombs():
+            self._grow()
+        for attempt in range(self.size):
+            s = self._probe(key, attempt)
+            cell = self.slots[s]
+            if cell is None or cell == ("_TOMB_", None):
+                self.slots[s] = (key, value)
+                self.n_keys += 1
+                self.collisions += attempt
+                return attempt
+            if cell[0] == key:
+                self.slots[s] = (key, value)
+                return attempt
+        self._grow()
+        return self.insert(key, value)
+
+    def lookup(self, key):
+        steps = 0
+        for attempt in range(self.size):
+            s = self._probe(key, attempt)
+            steps += 1
+            cell = self.slots[s]
+            if cell is None:
+                return None, steps
+            if cell != ("_TOMB_", None) and cell[0] == key:
+                return cell[1], steps
+        return None, steps
+
+    def delete(self, key):
+        for attempt in range(self.size):
+            s = self._probe(key, attempt)
+            cell = self.slots[s]
+            if cell is None:
+                return False
+            if cell != ("_TOMB_", None) and cell[0] == key:
+                self.slots[s] = ("_TOMB_", None)
+                self.n_keys -= 1
+                return True
+        return False
+
+    def _tombs(self):
+        c = 0
+        for cell in self.slots:
+            if cell == ("_TOMB_", None):
+                c += 1
+        return c
+
+    def _grow(self):
+        """Rehash everything into a bigger table (next odd prime-ish). O(n)."""
+        old = self.slots
+        self.size = self.size * 2 + 1
+        self.slots = [None] * self.size
+        self.n_keys = 0
+        for cell in old:
+            if cell is not None and cell != ("_TOMB_", None):
+                self.insert(cell[0], cell[1])
+
+    def snapshot(self):
+        """Bucket view for UI: (index, key-or-'TOMB'/'EMPTY-never?', value)."""
+        out = []
+        for i in range(self.size):
+            cell = self.slots[i]
+            if cell is None:
+                out.append((i, None, None))
+            elif cell == ("_TOMB_", None):
+                out.append((i, "_TOMB_", None))
+            else:
+                out.append((i, cell[0], cell[1]))
+        return out
