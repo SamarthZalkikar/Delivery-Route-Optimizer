@@ -120,3 +120,39 @@ class HashTableChaining:
                 return True
             prev, cur = cur, cur.nxt
         return False
+
+    def snapshot(self):
+        """Buckets as (index, [key,...]) for the UI collision panel."""
+        out = []
+        for i in range(self.size):
+            items, cur = [], self.buckets[i]
+            while cur:
+                items.append((cur.key, cur.value))
+                cur = cur.nxt
+            out.append(items)
+        return out
+
+class HashTableOpen:
+    """Open addressing in a plain array. probe_fn(index, attempt, size)->offset.
+
+    resolution='linear'    : probe i+1, i+2 ...          (primary clustering)
+    resolution='quadratic' : probe i+1^2, i+2^2 ...      (secondary clustering)
+    resolution='double'    : probe i + attempt*h2(key)   (double hashing)
+    Each probe = one comparison: lookup returns (value, steps).
+    Deleted slots carry a TOMBSTONE so chains under deletion stay findable.
+    """
+
+    def __init__(self, size=11, resolution="linear", hashfn=hash_division):
+        self.size = size
+        self.resolution = resolution
+        self.hashfn = hashfn
+        self.slots = [None] * size
+        self.n_keys = 0
+        self.collisions = 0
+
+    def _home(self, key):
+        return self.hashfn(key, self.size)
+
+    def _h2(self, key):
+        """Secondary hash for double hashing (any odd number < size, != 1..0)."""
+        return 1 + (self.hashfn(key, self.size - 1))
