@@ -261,3 +261,137 @@ class AVLTree:
         self.root = None
         self.n = 0
         self.rotations = 0
+
+    def search(self, key, steps_ret=False):
+        cur, steps = self.root, 0
+        while cur:
+            steps += 1
+            if key == cur.key:
+                return (cur.val, steps) if steps_ret else cur.val
+            cur = cur.left if key < cur.key else cur.right
+        return (None, steps) if steps_ret else None
+
+    def contains(self, key):
+        """Existence check INDEPENDENT of stored value (delete uses it so a
+        found key whose val happens to be None is not confused with a miss)."""
+        cur = self.root
+        while cur:
+            if key == cur.key:
+                return True
+            cur = cur.left if key < cur.key else cur.right
+        return False
+
+    def insert(self, key, val=None):
+        self.root = _avl_insert(self.root, key, val, self)
+        self.n += 1
+
+    def delete(self, key):
+        if not self.contains(key):
+            return False
+        self.root = _avl_delete(self.root, key, self)
+        self.n -= 1
+        return True
+
+    def height(self):
+        return self.root.h if self.root else 0
+
+    def items(self):
+        """In-order key/val walk (iterative, own stack), sorted by key."""
+        stack, cur, out = [], self.root, []
+        while stack or cur:
+            while cur:
+                stack.append(cur)
+                cur = cur.left
+            node = stack.pop()
+            out.append((node.key, node.val))
+            cur = node.right
+        return out
+
+    def rot_right(self, y):
+        """LL case fix: clockwise rotation around y. O(1)."""
+        x = y.left
+        t2 = x.right
+        x.right = y
+        y.left = t2
+        _upd(y)
+        _upd(x)
+        self.rotations += 1
+        return x
+
+    def rot_left(self, x):
+        """RR case fix: counter-clockwise rotation around x. O(1)."""
+        y = x.right
+        t2 = y.left
+        y.left = x
+        x.right = t2
+        _upd(x)
+        _upd(y)
+        self.rotations += 1
+        return y
+
+def _upd(n):
+    l = n.left.h if n.left else 0
+    r = n.right.h if n.right else 0
+    n.h = 1 + (l if l > r else r)
+
+def _avl_insert(node, key, val, tree):
+    if node is None:
+        return AVLNode(key, val)
+    if key < node.key:
+        node.left = _avl_insert(node.left, key, val, tree)
+    elif key > node.key:
+        node.right = _avl_insert(node.right, key, val, tree)
+    else:
+        node.val = val; tree.n -= 1
+        return node
+    _upd(node)
+    return _rebalance(node, tree)
+
+def _rebalance(node, tree):
+    b = node.bf()
+    if b > 1:
+        if node.left.bf() >= 0:
+            return tree.rot_right(node)
+        node.left = tree.rot_left(node.left)
+        return tree.rot_right(node)
+    if b < -1:
+        if node.right.bf() <= 0:
+            return tree.rot_left(node)
+        node.right = tree.rot_right(node.right)
+        return tree.rot_left(node)
+    return node
+
+def _avl_delete(node, key, tree):
+    if node is None:
+        return None
+    if key < node.key:
+        node.left = _avl_delete(node.left, key, tree)
+    elif key > node.key:
+        node.right = _avl_delete(node.right, key, tree)
+    else:
+        if node.left is None:
+            return node.right
+        if node.right is None:
+            return node.left
+        succ = node.right
+        while succ.left:
+            succ = succ.left
+        node.key, node.val = succ.key, succ.val
+        node.right = _avl_delete(node.right, succ.key, tree)
+    _upd(node)
+    return _rebalance(node, tree)
+
+class BTreeNode:
+    __slots__ = ("keys", "vals", "children", "leaf")
+
+    def __init__(self, leaf):
+        self.keys = []
+        self.vals = []
+        self.children = []
+        self.leaf = leaf
+
+class BTree:
+    """B-tree of minimum degree t (== CLRS B-TREE). Insert with preemptive
+    splits, search O(t log_t n), DELETE with all borrow/merge cases.
+    WHY databases love it: one node covers a big DISK BLOCK, so fan-out t>=64
+    means tiny height (a million rows is 3-4 levels) => few random reads."""
