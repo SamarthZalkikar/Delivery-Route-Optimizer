@@ -572,3 +572,161 @@ def _bt_borrow_prev(x, i):
     x.vals[i - 1] = sib.vals[-1]
     sib.keys.pop()
     sib.vals.pop()
+
+def _bt_borrow_next(x, i):
+    child, sib = x.children[i], x.children[i + 1]
+    child.keys.append(x.keys[i])
+    child.vals.append(x.vals[i])
+    if not sib.leaf:
+        child.children.append(sib.children[0])
+        sib.children.pop(0)
+    x.keys[i] = sib.keys[0]
+    x.vals[i] = sib.vals[0]
+    sib.keys.pop(0)
+    sib.vals.pop(0)
+
+def _walk_btree(x, out):
+    for i in range(len(x.keys)):
+        if not x.leaf:
+            _walk_btree(x.children[i], out)
+        out.append(x.keys[i])
+    if not x.leaf:
+        _walk_btree(x.children[-1], out)
+
+class BPlusLeaf:
+    __slots__ = ("keys", "vals", "next_leaf", "prev_leaf")
+
+    def __init__(self):
+        self.keys = []
+        self.vals = []
+        self.next_leaf = None
+        self.prev_leaf = None
+
+class BPlusInternal:
+    __slots__ = ("keys", "children")
+
+    def __init__(self):
+        self.keys = []
+        self.children = []
+
+class BPlusTree:
+    """B+ tree with a leaf-level linked chain.
+    Differences vs B-tree: all data in leaves; internal nodes are signposts
+    (so range scans = one descent + next_leaf hops: O(log n + k))."""
+
+    def __init__(self, m=4):
+        self.m = max(3, m)
+        self.root = BPlusLeaf()
+        self.first_leaf = self.root
+        self.n = 0
+
+    def _find_leaf(self, key):
+        node = self.root
+        while isinstance(node, BPlusInternal):
+            i = 0
+            while i < len(node.keys) and key >= node.keys[i]:
+                i += 1
+            node = node.children[i]
+        return node
+
+    def insert(self, key, val=None):
+        leaf = self._find_leaf(key)
+        i = _bsearch_keys(leaf.keys, key)
+        if i < len(leaf.keys) and leaf.keys[i] == key:
+            leaf.vals[i] = val
+            return
+        leaf.keys.insert(i, key)
+        leaf.vals.insert(i, val)
+        self.n += 1
+        if len(leaf.keys) > self.m - 1:
+            mid = len(leaf.keys) // 2
+            right = BPlusLeaf()
+            right.keys = leaf.keys[mid:]
+            right.vals = leaf.vals[mid:]
+            right.next_leaf = leaf.next_leaf
+            right.prev_leaf = leaf
+            if leaf.next_leaf:
+                leaf.next_leaf.prev_leaf = right
+            leaf.next_leaf = right
+            del leaf.keys[mid:]
+            del leaf.vals[mid:]
+            sep = right.keys[0]
+            _bp_insert_in_parent(self, leaf, sep, right)
+
+    def search(self, key):
+        node, steps = self._find_leaf(key), 0
+        i = _bsearch_keys(node.keys, key)
+        steps += 1
+        if i < len(node.keys) and node.keys[i] == key:
+            return node.vals[i], steps
+        return None, steps
+
+    def range_scan(self, lo, hi):
+        """Leaf-chain range query: descend once, then follow next_leaf. O(log n + k)."""
+        out = []
+        leaf = self._find_leaf(lo)
+        while leaf is not None:
+            for i in range(len(leaf.keys)):
+                k = leaf.keys[i]
+                if k < lo:
+                    continue
+                if k > hi:
+                    return out
+                out.append((k, leaf.vals[i]))
+            leaf = leaf.next_leaf
+        return out
+
+    def snapshot_structure(self):
+        """Levels of keys for the UI panel (top-down)."""
+        levels = []
+        queue = [self.root]
+        while queue:
+            nxt = []
+            level = []
+            for node in queue:
+                if isinstance(node, BPlusInternal):
+                    level.append(list(node.keys))
+                    nxt.extend(node.children)
+                else:
+                    level.append(list(node.keys))
+            if level:
+                levels.append(level)
+            queue = nxt
+        return levels
+
+def _bp_insert_in_parent(tree, left, key, right):
+    """Climb the tree splitting internals until something has room. O(depth)."""
+    if left is tree.root:
+        root = BPlusInternal()
+        root.keys = [key]
+        root.children = [left, right]
+        tree.root = root
+        return
+    parent = _bp_parent_of(tree.root, left)
+    idx = parent.children.index(left)
+    parent.keys.insert(idx, key)
+    parent.children.insert(idx + 1, right)
+    if len(parent.keys) <= tree.m - 1:
+        return
+
+    mid = len(parent.keys) // 2
+    up_key = parent.keys[mid]
+    right_node = BPlusInternal()
+    right_node.keys = parent.keys[mid + 1:]
+    right_node.children = parent.children[mid + 1:]
+    del parent.keys[mid:]
+    del parent.children[mid + 1:]
+    _bp_insert_in_parent(tree, parent, up_key, right_node)
+
+def _bp_parent_of(node, child):
+    if isinstance(node, BPlusLeaf):
+        return None
+    for c in node.children:
+        if c is child:
+            return node
+    for c in node.children:
+        if isinstance(c, BPlusInternal):
+            p = _bp_parent_of(c, child)
+            if p is not None:
+                return p
+    return None
