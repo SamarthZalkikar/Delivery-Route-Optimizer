@@ -30,3 +30,31 @@ def haversine(lat1, lng1, lat2, lng2):
 
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
     return EARTH_R_KM * c
+
+def latlng_to_xy(lat, lng, center, lat_unit, lng_unit):
+    """(lat,lng) -> schematic grid (x, y) floats. x = 50 at center lng."""
+    clat, clng = center
+    x = 50.0 + (lng - clng) / lng_unit
+    y = 50.0 - (lat - clat) / lat_unit
+    return x, y
+
+def xy_to_latlng(x, y, center, lat_unit, lng_unit):
+    """Schematic grid (x,y) -> (lat, lng) floats. Inverse of latlng_to_xy."""
+    clat, clng = center
+    lat = clat - (y - 50.0) * lat_unit
+    lng = clng + (x - 50.0) * lng_unit
+    return lat, lng
+
+def valid_latlng(lat, lng):
+    """Range check: latitude in [-90, 90], longitude in [-180, 180]."""
+    if not isinstance(lat, (int, float)) or not isinstance(lng, (int, float)):
+        return False
+    if isinstance(lat, bool) or isinstance(lng, bool):
+        return False
+    return -90.0 <= float(lat) <= 90.0 and -180.0 <= float(lng) <= 180.0
+
+def near_center(lat, lng, center, max_deg=0.35):
+    """Keep user-added locations within a small box around CITY_CENTER
+    (0.35 deg ~= 35 km) so the map never zooms out absurdly."""
+    clat, clng = center
+    return (abs(lat - clat) <= max_deg) and (abs(lng - clng) <= max_deg)
