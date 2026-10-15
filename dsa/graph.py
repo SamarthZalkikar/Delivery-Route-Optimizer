@@ -59,3 +59,35 @@ class Graph:
                 j -= 1
             out[j + 1] = cur
         return out
+
+    def node_count(self):
+        return self.n
+
+    def edge_count(self):
+        return len(self.edges)
+
+def bfs_order(graph, start):
+    """BFS with the project's own ArrayDeque fringe; O(V + E).
+    Returns visit order + levels (depths)."""
+    visited = [False] * graph.n
+    order, levels = [], []
+    q = ArrayDeque()
+    visited[start] = True
+    q.push_back(start)
+    lvl = [0] * graph.n
+    lvl[start] = 0
+    while not q.is_empty():
+        u = q.pop_front()
+        order.append(u)
+        levels.append(lvl[u])
+
+        neigh = []
+        for e in graph.adjacency[u]:
+            neigh.append(e)
+        for e in neigh:
+            v = e[0]
+            if not visited[v]:
+                visited[v] = True
+                lvl[v] = lvl[u] + 1
+                q.push_back(v)
+    return order, levels
