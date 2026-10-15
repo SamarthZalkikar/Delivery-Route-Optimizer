@@ -152,3 +152,112 @@ class BST:
             out.append((node.key, node.val))
             cur = node.right
         return out
+
+def _h(node):
+    if node is None:
+        return 0
+    l, r = _h(node.left), _h(node.right)
+    return 1 + (l if l > r else r)
+
+class ThreadedNode:
+    __slots__ = ("key", "val", "left", "right", "lthread", "rthread")
+
+    def __init__(self, key, val=None):
+        self.key = key
+        self.val = val
+        self.left = self.right = None
+        self.lthread = self.rthread = True
+
+class ThreadedBST:
+    """Right-threaded binary search tree. Right NULL pointers are replaced by
+    threads to the inorder SUCCESSOR, giving O(n) inorder traversal with O(1)
+    space -- no stack, no recursion, no parent pointer.
+    insert O(h); inorder_threaded O(n) but O(1) extra space."""
+
+    def __init__(self):
+        self.root = None
+        self.n = 0
+
+    def insert(self, key, val=None):
+        """BST insert on a right-threaded tree.
+        LEFT child: new node threads RIGHT to its successor (the old parent).
+        RIGHT child: new node INHERITS the parent's old successor thread.
+        insert O(h)."""
+        if self.root is None:
+            self.root = ThreadedNode(key, val)
+            self.n += 1
+            return
+        node = self.root
+        while True:
+            if key == node.key:
+                node.val = val
+                return
+            if key < node.key:
+                if not node.lthread:
+                    node = node.left
+                else:
+                    new = ThreadedNode(key, val)
+                    new.rthread = True
+                    new.right = node
+                    new.lthread = True
+                    node.lthread = False
+                    node.left = new
+                    self.n += 1
+                    return
+            else:
+                if not node.rthread:
+                    node = node.right
+                else:
+                    new = ThreadedNode(key, val)
+                    new.rthread = node.rthread
+                    new.right = node.right
+                    new.lthread = True
+                    node.rthread = False
+                    node.right = new
+                    self.n += 1
+                    return
+
+    def leftmost(self, node):
+        while node.lthread is False and node.left is not None:
+            node = node.left
+        return node
+
+    def inorder_threaded(self):
+        """FOLLOW-THE-thread traversal: zero stack, zero recursion. O(n)."""
+        out = []
+        cur = self.leftmost(self.root) if self.root else None
+        while cur is not None:
+            out.append(cur.key)
+            if cur.rthread:
+                cur = cur.right
+            else:
+                cur = self.leftmost(cur.right)
+        return out
+
+    def __len__(self):
+        return self.n
+
+class AVLNode:
+    __slots__ = ("key", "val", "left", "right", "h")
+
+    def __init__(self, key, val=None):
+        self.key = key
+        self.val = val
+        self.left = None
+        self.right = None
+        self.h = 1
+
+    def bf(self):
+        l = self.left.h if self.left else 0
+        r = self.right.h if self.right else 0
+        return l - r
+
+class AVLTree:
+    """Self-BALANCING BST: every insert/delete repairs height with the four
+    classic rotations, so all O(h) ops become O(log n) guaranteed.
+    Rotations implemented: LL (clockwise), RR (counter), LR & RL (double)."""
+
+    def __init__(self):
+        self.root = None
+        self.n = 0
+        self.rotations = 0
