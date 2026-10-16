@@ -1,0 +1,24 @@
+
+
+:root {
+  --bg:        #F2E8CF;
+  --ink:       #1A1A1A;
+  --panel:     #FFFFFF;
+  --accent:    #FF5A36;
+  --accent-2:  #2EC4B6;
+  --accent-3:  #FFD23F;
+  --danger:    #E63946;
+  --grid:      #D9CFAF;
+
+  --cream:     #F2E8CF;
+  --radius:    0;
+  --border:    3px solid var(--ink);
+  --shadow:    6px 6px 0 var(--ink);
+  --shadow-press: 2px 2px 0 var(--ink);
+
+  --px: "Press Start 2P", ui-monospace, "Courier New", monospace;
+  --mono: "VT323", ui-monospace, "Courier New", monospace;
+  --mono-label: "IBM Plex Mono", ui-monospace, "Courier New", monospace;
+
+  --cell: 24px;
+}
