@@ -158,3 +158,116 @@ function tabFromHash() {
   var h = (window.location.hash || "").replace(/^#/, "").toLowerCase();
   return TAB_HASH_ALIAS[h] || null;
 }
+
+function storedTab() {
+  try {
+    var v = localStorage.getItem("dro-tab");
+    return TABS[v] ? v : null;
+  } catch (e) { return null; }
+}
+
+function setTab(which) {
+  var t = TABS[which] || TABS.dispatch;
+  ACTIVE_TAB = t.key;
+  $$(".tab").forEach(function (b) {
+    var active = b.id === "tabbtn-" + t.key;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  Object.keys(TABS).forEach(function (id) {
+    var p = $("#" + TABS[id].panel);
+    if (!p) return;
+    var show = id === t.key;
+    p.classList.toggle("hidden", !show);
+    p.classList.toggle("is-active", show);
+  });
+  try { localStorage.setItem("dro-tab", t.key); } catch (e) {   }
+  clearTabError();
+  try {
+    if (!t.inited && t.init) { t.inited = true; t.init(); }
+  } catch (e) { showTabError(t, e); return; }
+  try {
+    if (t.onShow) t.onShow();
+  } catch (e) { showTabError(t, e); }
+}
+
+function showTabError(tab, err) {
+  var msg = (err && err.message) ? err.message : String(err);
+  if (window.console) console.error("[tab: " + tab.key + "]", err && err.stack || msg);
+  var sec = $("#" + tab.panel);
+  if (!sec) return;
+  clearTabError();
+  var d = document.createElement("div");
+  d.className = "panel col-12 tab-error";
+  var title = document.createElement("div");
+  title.className = "panel-title";
+  title.innerHTML = "<span>! ERROR - " + tab.title +
+    " FAILED TO LOAD</span><span class=\"winbtns\">[ _ ][ X ]</span>";
+  var body = document.createElement("div");
+  body.className = "panel-body";
+  var msgBox = document.createElement("div");
+  msgBox.className = "empty-state";
+  msgBox.textContent = msg.toUpperCase();
+  var retry = document.createElement("button");
+  retry.className = "btn";
+  retry.textContent = "RETRY";
+  retry.addEventListener("click", function () {
+    tab.inited = false;
+    setTab(tab.key);
+  });
+  body.appendChild(msgBox);
+  body.appendChild(retry);
+  d.appendChild(title);
+  d.appendChild(body);
+  sec.insertBefore(d, sec.firstChild);
+}
+
+function clearTabError() {
+  $$(".tab-error").forEach(function (el) { el.remove(); });
+}
+
+function setLoading(on) {
+  $$("[data-loading]").forEach(function (el) {
+    el.classList.toggle("hidden", !on);
+  });
+}
+
+function locById(id) {
+  for (var i = 0; i < S.locations.length; i++) {
+    if (S.locations[i].id === id) return S.locations[i];
+  }
+  return null;
+}
+
+function computeFit() {
+  var xs = [], ys = [];
+  S.locations.forEach(function (l) { xs.push(l.x); ys.push(l.y); });
+  var minx = Math.min.apply(null, xs), maxx = Math.max.apply(null, xs);
+  var miny = Math.min.apply(null, ys), maxy = Math.max.apply(null, ys);
+  var w = Math.max(1, maxx - minx), h = Math.max(1, maxy - miny);
+  var s = Math.min((CANV.W - 2 * CANV.PAD) / w, (CANV.H - 2 * CANV.PAD) / h);
+  var ox = (CANV.W - w * s) / 2 - minx * s;
+  var oy = (CANV.H - h * s) / 2 - miny * s;
+  S.fit = { s: s, ox: ox, oy: oy };
+}
+
+function px(id) {
+  var l = locById(id);
+  if (!l) return { x: 0, y: 0 };
+  return { x: S.fit.ox + l.x * S.fit.s, y: S.fit.oy + l.y * S.fit.s };
+}
+
+function applyViewBox() {
+  $("#map").setAttribute("viewBox",
+    S.vb.x + " " + S.vb.y + " " + S.vb.w + " " + S.vb.h);
+}
+function clampVB() {
+  S.vb.w = Math.max(160, Math.min(CANV.W, S.vb.w));
+  S.vb.h = Math.max(112, Math.min(CANV.H, S.vb.h));
+  S.vb.x = Math.max(0, Math.min(CANV.W - S.vb.w, S.vb.x));
+  S.vb.y = Math.max(0, Math.min(CANV.H - S.vb.h, S.vb.y));
+}
+function resetZoom() {
+  S.vb = { x: 0, y: 0, w: CANV.W, h: CANV.H };
+  applyViewBox();
+}
