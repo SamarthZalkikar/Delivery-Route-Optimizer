@@ -110,3 +110,94 @@ class TestCircularQueue(unittest.TestCase):
         self.assertEqual(q.dequeue(), 2)
 
 class TestDeque(unittest.TestCase):
+    def test_both_ends(self):
+        d = ArrayDeque()
+        d.push_back(2); d.push_front(1); d.push_back(3)
+        self.assertEqual(d.pop_front(), 1)
+        self.assertEqual(d.pop_back(), 3)
+        self.assertEqual(len(d), 1)
+
+    def test_restricted_variants(self):
+        from dsa.linear import DequeIR, DequeOR
+        ir = DequeIR()
+        ir.push_back(1)
+        with self.assertRaises(Exception):
+            ir._forbidden("push_front")
+        self.assertEqual(ir._q.pop_front(), 1)
+        irq = DequeOR()
+        irq.push_front(9); irq.push_back(8)
+        self.assertEqual(irq.pop_front(), 9)
+
+class TestLinkedLists(unittest.TestCase):
+    def test_sll(self):
+        l = SinglyLinkedList()
+        l.push_back(1); l.push_back(2); l.push_front(0)
+        self.assertEqual(l.to_list(), [0, 1, 2])
+        self.assertEqual(l.search(2), 2)
+        self.assertTrue(l.delete_val(1))
+        self.assertEqual(l.to_list(), [0, 2])
+        self.assertFalse(l.delete_val(9))
+        self.assertEqual(len(l), 2)
+
+    def test_dll_reverse(self):
+        d = DoublyLinkedList([1, 2, 3])
+        self.assertEqual(d.to_list_reverse(), [3, 2, 1])
+        d.delete_node(d.head)
+        self.assertEqual(d.to_list(), [2, 3])
+
+    def test_header_list_count(self):
+        h = HeaderLinkedList()
+        h.push_back("x"); h.push_back("y")
+        self.assertEqual(len(h), 2)
+        self.assertEqual(h.to_list(), ["x", "y"])
+        h.delete_val("x")
+        self.assertEqual(len(h), 1)
+
+    def test_circular_delivery_loop(self):
+        c = CircularLinkedList(["depot", "A", "B"])
+        self.assertEqual(c.to_list(), ["depot", "A", "B"])
+        c.rotate(1)
+        self.assertEqual(c.to_list(), ["A", "B", "depot"])
+        c.delete_val("B")
+        self.assertEqual(c.to_list(), ["A", "depot"])
+        self.assertEqual(len(c), 2)
+
+class TestPolynomial(unittest.TestCase):
+    def test_add_same_order(self):
+        p = Polynomial([(3, 2), (2, 1), (1, 0)])
+        q = Polynomial([(1, 2), (4, 0)])
+        r = p.add(q)
+        self.assertEqual(r.evaluate(2), 4 * 4 + 2 * 2 + 5)
+        self.assertEqual(r.terms(), [(4, 2), (2, 1), (5, 0)])
+
+    def test_multiply(self):
+        p = Polynomial([(2, 1), (1, 0)])
+        q = Polynomial([(3, 2), (1, 1)])
+        r = p.multiply(q)
+        self.assertAlmostEqual(r.evaluate(2), 5 * 14)
+        self.assertEqual(r.terms()[0], (6, 3))
+
+    def test_cancellation(self):
+        p = Polynomial([(5, 3), (2, 1)])
+        q = Polynomial([(-5, 3), (1, 2)])
+        r = p.add(q)
+        self.assertEqual(r.terms(), [(1, 2), (2, 1)])
+
+    def test_cost_model_display(self):
+        p = Polynomial([(0.5, 2), (2, 1), (100, 0)])
+        self.assertEqual(p.evaluate(10), 0.5 * 100 + 20 + 100)
+        self.assertEqual(p.to_display(), "0.5x^2 + 2x + 100")
+
+class TestDSU(unittest.TestCase):
+    def test_union_find_rank(self):
+        d = DSU(6)
+        d.union(0, 1); d.union(1, 2)
+        d.union(3, 4)
+        self.assertTrue(d.connected(0, 2))
+        self.assertFalse(d.connected(2, 3))
+        self.assertEqual(d.n_components, 3)
+        d.union(2, 3)
+        self.assertEqual(d.n_components, 2)
+        comps = d.components()
+        self.assertEqual(comps[0], [0, 1, 2, 3, 4])
+        self.assertEqual(comps[1], [5])
