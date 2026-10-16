@@ -287,3 +287,135 @@ class TestHashing(unittest.TestCase):
         self.assertTrue(0 <= v < 100)
 
         self.assertTrue(0 <= hash_folding(12345, 100, chunk=2) < 100)
+
+    def test_chaining(self):
+        ht = HashTableChaining(size=5)
+        for i in range(10):
+            ht.insert(i, "v%d" % i)
+        self.assertEqual(ht.n_keys, 10)
+        self.assertGreater(ht.collisions, 0)
+        self.assertEqual(ht.lookup(7)[0], "v7")
+        self.assertTrue(ht.delete(7))
+        self.assertEqual(ht.lookup(7)[0], None)
+        self.assertEqual(ht.n_keys, 9)
+
+    def test_open_addressing_modes(self):
+        for mode in ["linear", "quadratic", "double"]:
+            ht = HashTableOpen(size=13, resolution=mode)
+            for i in range(9):
+                ht.insert(i, i * 10)
+            self.assertEqual(ht.lookup(5)[0], 50)
+            self.assertTrue(ht.delete(5))
+            self.assertEqual(ht.lookup(5)[0], None)
+            ht.insert(5, -1)
+            self.assertEqual(ht.lookup(5)[0], -1)
+
+    def test_open_grow(self):
+        ht = HashTableOpen(size=5)
+        for i in range(50):
+            ht.insert(i, i)
+        self.assertEqual(ht.n_keys, 50)
+        self.assertEqual(ht.lookup(37)[0], 37)
+
+class TestBST(unittest.TestCase):
+    def test_crud_and_traversals(self):
+        t = BST()
+        for k in [5, 3, 8, 1, 4, 7, 9]:
+            t.insert(k, "v%d" % k)
+        self.assertEqual(t.inorder(), [1, 3, 4, 5, 7, 8, 9])
+        self.assertEqual(t.preorder()[0], 5)
+        self.assertEqual(t.postorder()[-1], 5)
+        self.assertEqual(t.search(4), "v4")
+        self.assertTrue(t.delete(3) and t.delete(5))
+        self.assertEqual(t.inorder(), [1, 4, 7, 8, 9])
+        self.assertFalse(t.delete(100))
+        self.assertEqual(t.height(), 3)
+
+class TestThreadedBST(unittest.TestCase):
+    def test_inorder_without_stack(self):
+        tt = ThreadedBST()
+        for k in [10, 5, 15, 3, 7, 12, 18]:
+            tt.insert(k)
+        self.assertEqual(tt.inorder_threaded(), [3, 5, 7, 10, 12, 15, 18])
+        self.assertEqual(len(tt), 7)
+
+class TestAVL(unittest.TestCase):
+    def test_all_rotations_counted(self):
+        """LL and RR use 1 rotation each; LR and RL use 2 (double rotation)."""
+        a = AVLTree()
+        for k in [3, 2, 1]:
+            a.insert(k)
+        self.assertEqual(a.root.key, 2)
+        self.assertEqual(a.rotations, 1)
+        a2 = AVLTree()
+        for k in [1, 2, 3]:
+            a2.insert(k)
+        self.assertEqual(a2.root.key, 2)
+        self.assertEqual(a2.rotations, 1)
+        a3 = AVLTree()
+        for k in [3, 1, 2]:
+            a3.insert(k)
+        self.assertEqual(a3.root.key, 2)
+        self.assertEqual(a3.rotations, 2)
+        a4 = AVLTree()
+        for k in [1, 3, 2]:
+            a4.insert(k)
+        self.assertEqual(a4.root.key, 2)
+        self.assertEqual(a4.rotations, 2)
+
+    def test_delete_and_height_cap(self):
+        a = AVLTree()
+        for k in range(1, 32):
+            a.insert(k)
+        self.assertLessEqual(a.height(), 2 * (31 + 1).bit_length())
+        self.assertTrue(a.delete(16))
+        self.assertFalse(a.delete(999))
+        self.assertEqual(a.n, 30)
+        self.assertGreaterEqual(a.rotations, 0)
+
+class TestBTree(unittest.TestCase):
+    def test_insert_search_delete(self):
+        bt = BTree(t=3)
+        keys = list(range(1, 51))
+        random.shuffle(keys)
+        for k in keys:
+            bt.insert(k, k * 2)
+        self.assertEqual(bt.n, 50)
+        for k in keys:
+            self.assertEqual(bt.search(k)[0], k * 2)
+        all_keys = bt.traversal()
+        self.assertEqual(all_keys, sorted(all_keys))
+        self.assertEqual(len(all_keys), 50)
+        for k in range(1, 21):
+            bt.delete(k)
+        self.assertEqual(bt.n, 30)
+        self.assertEqual(bt.search(5)[0], None)
+        self.assertEqual(bt.search(30)[0], 60)
+
+class TestBPlusTree(unittest.TestCase):
+    def test_insert_search_range(self):
+        bp = BPlusTree(m=4)
+        for k in range(1, 41):
+            bp.insert(k, k * k)
+        self.assertEqual(bp.n, 40)
+        self.assertEqual(bp.search(7)[0], 49)
+        rng = bp.range_scan(10, 14)
+        self.assertEqual([k for k, _ in rng], [10, 11, 12, 13, 14])
+        self.assertTrue(all(isinstance(v, int) for _, v in rng))
+        levels = bp.snapshot_structure()
+        self.assertGreaterEqual(len(levels), 2)
+
+def make_grid_graph():
+    """4x4 grid with horizontal+vertical edges, weights = manhattan dist."""
+    g = Graph(16)
+    def w(a, b):
+        (ra, ca), (rb, cb) = divmod(a, 4), divmod(b, 4)
+        return abs(ra - rb) + abs(cb - ca)
+    for r in range(4):
+        for c in range(4):
+            u = r * 4 + c
+            if c < 3:
+                g.add_edge(u, u + 1, w(u, u + 1))
+            if r < 3:
+                g.add_edge(u, u + 4, w(u, u + 4))
+    return g
