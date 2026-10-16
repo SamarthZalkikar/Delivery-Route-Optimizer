@@ -12,3 +12,10 @@ import time
 import random
 
 from dsa.linear import DynStack, MinHeapPQ, CircularQueue, SortedListPQ
+from dsa.linked import Polynomial, CircularLinkedList
+from dsa.trees import AVLTree, BTree, BPlusTree
+from dsa.trie import Trie
+from dsa.hashing import hash_division, hash_mid_square, hash_folding, \
+    HashTableChaining, HashTableOpen
+from dsa.graph import Graph, dijkstra_all_pairs, bfs_order, dfs_order, \
+    connected_components, prim_mst, kruskal_mst, path_via_prev, shortest_path
