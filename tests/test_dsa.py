@@ -1,0 +1,1 @@
+"""Tests for every data structure in the dsa/ package."""
