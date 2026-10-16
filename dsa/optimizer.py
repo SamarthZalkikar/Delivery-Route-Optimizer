@@ -140,3 +140,72 @@ class RouteOptimizer:
         for i in range(1, len(order)):
             c += self.dm[order[i - 1]][order[i]]
         return c + self.dm[order[-1]][depot]
+
+    def two_opt(self, order, depot):
+        """2-opt improvement: repeatedly reverse two-cut segments whenever the
+        reversal shrinks the closed tour. O(k^2) per pass, a few passes."""
+        if len(order) < 3:
+            return order, self.tour_cost(order, depot), 0
+        steps = 0
+        improved = True
+        while improved:
+            improved = False
+            for i in range(len(order) - 1):
+                for j in range(i + 1, len(order)):
+                    steps += 1
+                    a = depot if i == 0 else order[i - 1]
+                    b = order[i]
+                    c = order[j]
+                    d = depot if j == len(order) - 1 else order[j + 1]
+                    delta = (self.dm[a][c] + self.dm[b][d]) - (self.dm[a][b] + self.dm[c][d])
+                    if delta < -1e-9:
+                        order[i:j + 1] = order[i:j + 1][::-1]
+                        improved = True
+        return order, self.tour_cost(order, depot), steps
+
+    def optimize_heuristic(self, stops, depot):
+        """NN construction then 2-opt polishing. Returns (order, cost, steps)."""
+        path, cost, s1 = self.nearest_neighbour(stops, depot)
+        path2, cost2, s2 = self.two_opt(list(path), depot)
+        return path2, cost2, s1 + s2
+
+    def optimize(self, stops, depot, mode="auto"):
+        """Dispatcher used by the API. mode: exact | nn | nn2opt | heuristic | auto.
+        auto picks exact for <= 9 stops, nn2opt beyond.
+        The chosen engine label + complexity notes ride along in the result."""
+        engine = mode.lower()
+        if engine == "auto":
+            engine = "exact" if len(stops) <= 9 else "nn2opt"
+        elif engine == "heuristic":
+            engine = "nn2opt"
+        if engine not in ("exact", "nn", "nn2opt"):
+            raise ValueError("mode must be exact | nn | nn2opt | heuristic | auto")
+        self.last_pruned = 0
+        t0 = time.perf_counter()
+        if engine == "exact":
+            order, cost, steps = self.optimize_exact(stops, depot)
+            algo = "Backtracking TSP (explicit stack + branch & bound)"
+            complexity = "O(n!) with branch & bound pruning"
+            pruned = self.last_pruned
+        elif engine == "nn":
+            order, cost, steps = self.nearest_neighbour(stops, depot)
+            algo = "Nearest neighbour (greedy)"
+            complexity = "O(n^2) construction, no improvement pass"
+            pruned = 0
+        else:
+            order, cost, steps = self.optimize_heuristic(stops, depot)
+            algo = "Nearest neighbour + 2-opt"
+            complexity = "O(n^2) nearest neighbour + O(n^2) 2-opt per pass"
+            pruned = 0
+        elapsed = (time.perf_counter() - t0) * 1000.0
+        return {
+            "order": order,
+            "cost": round(cost, 2),
+            "steps": steps,
+            "algorithm": algo,
+            "complexity": complexity,
+            "engine": engine,
+            "mode": engine,
+            "pruned": pruned,
+            "ms": round(elapsed, 3),
+        }
