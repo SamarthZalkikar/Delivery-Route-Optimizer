@@ -41,3 +41,137 @@
 </nav>
 
 <main class="page">
+
+  <section class="grid" id="tab-dispatch" role="tabpanel" aria-labelledby="tabbtn-dispatch">
+    <div class="tab-loading" data-loading hidden>LOADING...</div>
+
+    <div class="panel col-7" id="panel-map">
+      <div class="panel-title"><span>CITY MAP NETWORK</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body map-panel">
+        <div class="map-toolbar">
+          <label class="lbl" for="labels-mode">LABELS:</label>
+          <select class="sel sel-sm" id="labels-mode" aria-label="Label mode">
+            <option value="all" selected>ALL</option>
+            <option value="route">ROUTE ONLY</option>
+            <option value="off">OFF</option>
+          </select>
+          <button class="btn btn-sm" id="btn-weights" aria-pressed="false">SHOW DISTANCES</button>
+          <span class="modeswitch" role="group" aria-label="Map engine">
+            <button class="btn btn-sm" id="btn-mode-map" aria-pressed="false">MAP</button>
+            <button class="btn btn-sm" id="btn-mode-sch" aria-pressed="false">SCHEMATIC</button>
+          </span>
+          <button class="btn btn-sm" id="btn-mapfit" aria-label="Fit map to network">FIT</button>
+          <button class="btn btn-sm hidden" id="btn-mapfollow" aria-pressed="false">FOLLOW</button>
+          <span id="tiles-btns" class="hidden">
+            <button class="btn btn-sm" id="btn-tiles-carto">LIGHT TILES</button>
+            <button class="btn btn-sm" id="btn-tiles-osm">OSM TILES</button>
+          </span>
+        </div>
+        <div class="row locsearch">
+          <label class="lbl" for="locq">LOCATION:</label>
+          <input id="locq" class="in" autocomplete="off" spellcheck="false"
+                 placeholder="TYPE A PLACE..." aria-label="Location autocomplete">
+          <ul id="locq-list" class="ac-list" role="listbox" aria-label="Location matches"></ul>
+        </div>
+        <div class="svgwrap">
+          <svg id="map" viewBox="0 0 720 504" role="img" aria-label="City road network"
+               aria-describedby="map-summary">
+            <desc id="map-summary">Interactive city map; click squares to queue stops.</desc>
+            <g id="m-roads"></g>
+            <g id="m-slime"></g>
+            <g id="m-route"></g>
+            <g id="m-roadw"></g>
+            <g id="m-nodes"></g>
+            <g id="m-badges"></g>
+            <g id="m-badges-extra"></g>
+            <g id="m-labels"></g>
+            <g id="m-truck" class="truck-g hidden"></g>
+          </svg>
+          <div id="leaflet-host" class="leaflet-host hidden" role="img"
+               aria-label="Real city map (Leaflet)"></div>
+          <div class="zoombar">
+            <button class="btn btn-zoom" id="btn-zin" aria-label="Zoom in">+</button>
+            <button class="btn btn-zoom" id="btn-zout" aria-label="Zoom out">&minus;</button>
+            <button class="btn btn-zoom" id="btn-zreset" aria-label="Reset zoom and pan">&#9001;&#9002;</button>
+          </div>
+          <div id="tooltips" class="tooltips"></div>
+        </div>
+        <div class="legend" id="legend" aria-label="Map legend">
+          <span class="lg"><span class="sw sw-depot"></span>DEPOT</span>
+          <span class="lg"><span class="sw sw-loc"></span>LOCATION</span>
+          <span class="lg"><span class="sw sw-sel"></span>SELECTED STOP</span>
+          <span class="lg"><span class="sw sw-route"></span>OPTIMIZED ROUTE</span>
+          <span class="lg"><span class="sw sw-badge">1</span>STOP ORDER</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-5 col-stack">
+      <div class="panel" id="panel-planner">
+        <div class="panel-title"><span>ROUTE PLANNER</span><span class="winbtns">[ _ ][ X ]</span></div>
+        <div class="panel-body">
+          <div class="chips" id="stop-chips" aria-live="polite"><span class="chip empty">NO STOPS QUEUED - SELECT ON THE MAP</span></div>
+          <div class="row wrap">
+            <label class="lbl" for="opt-engine">ENGINE:</label>
+            <select id="opt-engine" class="sel" aria-label="Engine">
+              <option value="auto" selected>AUTO</option>
+              <option value="exact">EXACT (BACKTRACKING)</option>
+              <option value="nn">NEAREST NEIGHBOUR</option>
+              <option value="nn2opt">NEAREST + 2-OPT</option>
+            </select>
+            <label class="chk"><input type="checkbox" id="prio-first"> PRIORITY FIRST</label>
+          </div>
+          <p class="note noted" id="note-engine">ENGINE: AUTO - RESOLVES WHEN YOU RUN</p>
+          <p class="note noted" id="note-prio">PRIORITY FIRST: EXPRESS (E) STOPS ARE VISITED BEFORE STANDARD AND ECONOMY STOPS.</p>
+          <div class="warn hidden" id="engine-warn" role="alert">EXACT NEEDS &lt;= 9 STOPS - 10+ FALLS BACK AUTOMATICALLY</div>
+          <div class="warn hidden" id="stale-warn" role="status">STOPS CHANGED - RUN OPTIMIZER AGAIN</div>
+          <button class="btn btn-acc btn-run" id="btn-optimize">RUN OPTIMIZER &gt;&gt;</button>
+          <div class="btng3">
+            <button class="btn" id="btn-compare">COMPARE</button>
+            <button class="btn" id="btn-play" disabled aria-label="Play delivery animation">PLAY</button>
+            <button class="btn" id="btn-clear-stops">CLEAR STOPS</button>
+          </div>
+          <div id="opt-placeholder" class="empty-state">NO STOPS YET - CLICK SQUARES ON THE MAP</div>
+          <div id="opt-out" class="hidden">
+            <div class="tiles" id="plan-tiles">
+              <div class="tile" title="Total road distance in km"><span class="tilek">DISTANCE</span><span class="tilev" id="t-dist">--</span><span class="tileu">km</span></div>
+              <div class="tile" id="tile-cost" title="0.8*d^2 + 1.2*d + 35"><span class="tilek">COST</span><span class="tilev" id="t-cost">--</span><span class="tileu">Rs</span></div>
+              <div class="tile" title="distance / avg speed 30 km/h"><span class="tilek">ETA</span><span class="tilev" id="t-eta">--</span></div>
+              <div class="tile" title="locations served"><span class="tilek">STOPS</span><span class="tilev" id="t-stops">--</span></div>
+              <div class="tile" title="solver wall time in milliseconds"><span class="tilek">SOLVE TIME</span><span class="tilev" id="t-ms">--</span><span class="tileu">ms</span></div>
+            </div>
+            <div class="table-wrap">
+              <table class="tbl route-tbl" id="route-tbl">
+                <thead><tr><th>#</th><th>FROM &gt; TO</th><th>LEG KM</th><th>CUM KM</th><th>PRIORITY</th></tr></thead>
+                <tbody></tbody>
+              </table>
+              <p class="note" id="pri-legend">PRIORITY = BEST PENDING ORDER AT THE STOP (E = EXPRESS P1, S = STANDARD P2, Y = ECONOMY P3) - DEPOT LEGS SHOW -</p>
+            </div>
+            <div class="driver-box">
+              <span class="lbl">DRIVER:</span>
+              <span class="data" id="drv-name">--</span>
+              <span class="dim">(NEXT IN QUEUE)</span>
+              <button class="btn" id="btn-assign" aria-label="Assign next driver from round-robin queue">ASSIGN</button>
+            </div>
+            <details class="howbox" id="howsolved">
+              <summary>HOW WAS THIS SOLVED</summary>
+              <div class="howin">
+                <p class="data" id="hs-algo">--</p>
+                <p class="data" id="hs-cpl">--</p>
+                <p class="data" id="hs-explored">--</p>
+                <div class="dsachips" id="hs-chips"></div>
+              </div>
+            </details>
+            <div class="btng2">
+              <button class="btn" id="btn-copy">COPY ROUTE</button>
+              <button class="btn" id="btn-download">DOWNLOAD JSON</button>
+            </div>
+          </div>
+          <div id="cmp-out" class="hidden">
+            <table class="tbl cmp-tbl" id="cmp-tbl">
+              <thead><tr><th>ENGINE</th><th>KM</th><th>MS</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
