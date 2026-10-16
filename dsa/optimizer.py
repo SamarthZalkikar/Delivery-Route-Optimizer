@@ -108,3 +108,35 @@ class RouteOptimizer:
                 stack.push([path + [st], cost + dc, nvis])
         self.last_pruned = pruned
         return best["order"], best["cost"], steps
+
+    def nearest_neighbour(self, stops, depot):
+        """Greedy: always hop to the nearest unvisited stop. O(k^2)."""
+        if not stops:
+            return [], 0.0, 0
+        unvis = list(stops)
+        path, cost, steps = [], 0.0, 0
+        cur = depot
+        while unvis:
+            best_j, best_w = 0, float("inf")
+            for j in range(len(unvis)):
+                steps += 1
+                w = self.dm[cur][unvis[j]]
+                if w < best_w:
+                    best_w, best_j = w, j
+            nxt = unvis[best_j]
+            unvis[best_j] = unvis[-1]
+            unvis.pop()
+            path.append(nxt)
+            cost += self.dm[cur][nxt]
+            cur = nxt
+        cost += self.dm[path[-1]][depot] if path else 0.0
+        return path, cost, steps
+
+    def tour_cost(self, order, depot):
+        """Closed-tour cost depot -> stops -> depot, or 0 for an empty order."""
+        if not order:
+            return 0.0
+        c = self.dm[depot][order[0]]
+        for i in range(1, len(order)):
+            c += self.dm[order[i - 1]][order[i]]
+        return c + self.dm[order[-1]][depot]
