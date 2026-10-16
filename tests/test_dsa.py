@@ -201,3 +201,89 @@ class TestDSU(unittest.TestCase):
         comps = d.components()
         self.assertEqual(comps[0], [0, 1, 2, 3, 4])
         self.assertEqual(comps[1], [5])
+
+class TestTrie(unittest.TestCase):
+    def test_insert_search_delete(self):
+        t = Trie()
+        for w in ["Central Station", "Central Mall", "City Park", "Court"]:
+            t.insert(w)
+        self.assertTrue(t.search("Central Mall"))
+        self.assertFalse(t.search("Central"))
+        self.assertEqual(sorted(t.autocomplete("central", limit=10)),
+                         ["Central Mall", "Central Station"])
+        self.assertEqual(t.autocomplete("c", limit=2), sorted(
+            ["Central Mall", "Central Station", "City Park", "Court"])[:2])
+        self.assertTrue(t.delete("Court"))
+        self.assertFalse(t.search("Court"))
+        self.assertTrue(t.startswith("Central"))
+        self.assertFalse(t.delete("Nope"))
+
+def _check_sorted(a):
+    return all(a[i - 1] <= a[i] for i in range(1, len(a)))
+
+class TestSorting(unittest.TestCase):
+    def _cases(self):
+        return [[], [1], [3, 1], [5, 2, 9, 1, 5], random.sample(range(100), 40),
+                [1] * 5, [9, 8, 7, 6, 5, 4]]
+
+    def _run_each(self, fn):
+        for data in self._cases():
+            self.assertTrue(_check_sorted(fn(data)), "failed on %s" % (data,))
+
+    def test_all_sorts_sorted_correctly(self):
+        self._run_each(shell_sort)
+        self._run_each(quick_sort)
+        self._run_each(merge_sort)
+        self._run_each(heap_sort)
+        self._run_each(counting_sort)
+
+    def test_stability(self):
+        """Stable sorts must keep pairs ordered by input arrival for ties."""
+        keyed = [(2, "a"), (1, "b"), (2, "c"), (1, "d"), (2, "e")]
+        stable_out = merge_sort(keyed)
+        ties = [tag for k, tag in stable_out if k == 2]
+        self.assertEqual(ties, ["a", "c", "e"])
+        counting = counting_sort(keyed, key=lambda p: p[0])
+        ties_c = [tag for k, tag in counting if k == 2]
+        self.assertEqual(ties_c, ["a", "c", "e"])
+        qs = quick_sort(keyed)
+        self.assertTrue(_check_sorted([k for k, _ in qs]))
+        self.assertTrue(_check_sorted([k for k, _ in shell_sort(keyed)]))
+        self.assertTrue(_check_sorted([k for k, _ in heap_sort(keyed)]))
+
+    def test_benchmark_counts(self):
+        arr = random.sample(range(50), 30)
+        res = benchmark_all(arr)
+        self.assertEqual(len(res), 5)
+        for r in res:
+            self.assertTrue(r["sorted_ok"])
+            self.assertGreaterEqual(r["comparisons"], 0)
+        self.assertEqual(res[2]["algo"], "merge")
+
+    def test_external_sort(self):
+        arr = random.sample(range(100), 17)
+        trace = external_sort(arr, chunk_size=4)
+        self.assertEqual(trace["final"], sorted(arr))
+        self.assertGreater(trace["passes"], 0)
+
+    def test_searches(self):
+        arr = [1, 4, 7, 9, 15, 22, 30]
+        self.assertEqual(binary_search(arr, 9), (3, 1))
+        self.assertEqual(binary_search(arr, 10), (-1, 3))
+        self.assertEqual(linear_search(arr, 15), (4, 5))
+        self.assertEqual(linear_search(arr, 99)[0], -1)
+
+    def test_merge_sort_orders(self):
+        orders = [{"priority": 2, "weight": 1}, {"priority": 1, "weight": 5},
+                  {"priority": 1, "weight": 3}, {"priority": 3, "weight": 9}]
+        out = merge_sort_orders(orders)
+        self.assertEqual([o["priority"] for o in out], [1, 1, 2, 3])
+        self.assertEqual(out[0]["weight"], 5)
+
+class TestHashing(unittest.TestCase):
+    def test_hash_functions(self):
+        self.assertEqual(hash_division(97, 11), 97 % 11)
+        v = hash_mid_square(42, 100)
+        self.assertTrue(0 <= v < 100)
+
+        self.assertTrue(0 <= hash_folding(12345, 100, chunk=2) < 100)
