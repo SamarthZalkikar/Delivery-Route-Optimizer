@@ -252,3 +252,34 @@
 
     <div class="panel col-6">
       <div class="panel-title"><span>MST DUEL -- PRIM vs KRUSKAL</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <div class="duel">
+          <div class="duel-col">
+            <p class="lbl">PRIM (MIN-HEAP PQ)</p>
+            <p class="data total" id="prim-total">TOTAL --</p>
+            <ul class="datalist" id="prim-edges"></ul>
+          </div>
+          <div class="duel-col">
+            <p class="lbl">KRUSKAL (UNION-FIND)</p>
+            <p class="data total" id="krusk-total">TOTAL --</p>
+            <ul class="datalist" id="krusk-edges"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel col-3">
+      <div class="panel-title"><span>CONNECTED COMPONENTS</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <p class="data" id="comp-count">--</p>
+        <ul class="datalist" id="comps"></ul>
+      </div>
+    </div>
+
+    <div class="panel col-3">
+      <div class="panel-title"><span>SPARSE ROAD MATRIX</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <p class="data" id="sparse-stat">--</p>
+        <div class="sparseview x-scroll" id="sparse-view"></div>
+      </div>
+    </div>
