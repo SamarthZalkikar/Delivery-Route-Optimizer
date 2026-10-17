@@ -389,3 +389,103 @@ function placeLabels() {
           var sg = segs[m];
           if (segHitsRect(sg[0], sg[1], sg[2], sg[3], r)) score += 20;
         }
+        if (r[0] < 2 || r[2] > CANV.W - 2 || r[1] < 2 || r[3] > CANV.H - 2) score += 30;
+        scored.push({ cand: cands[i], rect: r, score: score });
+      }
+      scored.sort(function (a, b) { return a.score - b.score; });
+      if (scored[0].score < 95) {
+        best = { rect: scored[0].rect, cand: scored[0].cand,
+                 text: tryTexts[t], w: wtxt };
+      }
+    }
+    if (!best) {
+
+      best = { rect: labelRect(p.x, p.y, cands[0], 24), cand: cands[0],
+               text: shortCode(loc.name), w: 24, forced: true };
+    }
+    placed.push({
+      id: id, cx: p.x, cy: p.y, cand: best.cand, text: best.text, w: best.w,
+      forced: !!best.forced
+    });
+    placedRects.push({ id: id, rect: best.rect });
+  });
+  return placed;
+}
+
+function drawMap() {
+  if (!S.locations.length || !$("#map")) return;
+  computeFit();
+  var roads = $("#m-roads"), nodes = $("#m-nodes"), labels = $("#m-labels"),
+      badges = $("#m-badges"), route = $("#m-route"), weights = $("#m-roadw");
+  [roads, nodes, badges, route, weights].forEach(function (g) {
+    while (g.firstChild) g.removeChild(g.firstChild);
+  });
+
+  S.roads.forEach(function (r) {
+    var a = px(r.u), b = px(r.v);
+    var line = svg("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+      "data-edge": (window.DRO_edgeKey
+        ? window.DRO_edgeKey(r.u, r.v)
+        : Math.min(r.u, r.v) + "-" + Math.max(r.u, r.v)) });
+    var tv = svg("title", null);
+    tv.textContent = locById(r.u).name + " <-> " + locById(r.v).name + " : " + r.w + " km";
+    line.appendChild(tv);
+    roads.appendChild(line);
+  });
+
+  if (S.showDist) {
+    S.roads.forEach(function (r) {
+      var a = px(r.u), b = px(r.v);
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var len = Math.max(0.001, Math.hypot(dx, dy));
+      var nx = -dy / len * 9, ny = dx / len * 9;
+      var t = svg("text", { x: mx + nx, y: my + ny, class: "road-w", "text-anchor": "middle" });
+      t.textContent = String(r.w);
+      weights.appendChild(t);
+    });
+  }
+
+  var waypoints = [];
+  if (S.plan.result && S.plan.result.geometry) {
+    S.plan.result.geometry.forEach(function (hop) {
+      var pts = [];
+      hop.forEach(function (nid) {
+        var p = px(nid);
+        pts.push([p.x, p.y]);
+      });
+      waypoints.push(pts);
+      route.appendChild(svg("path", {
+        d: "M" + pts.map(function (pt) { return pt[0] + "," + pt[1]; }).join(" L"),
+        "data-leg": waypoints.length - 1
+      }));
+    });
+
+    waypoints.forEach(function (pts, li) {
+      for (var i = 0; i < pts.length - 1; i++) {
+        var a = pts[i], b = pts[i + 1];
+        var dx = b[0] - a[0], dy = b[1] - a[1];
+        var len = Math.hypot(dx, dy);
+        if (len < 24) continue;
+        var n = Math.max(1, Math.floor(len / 60));
+        var ux = dx / len, uy = dy / len;
+        for (var k = 1; k <= n; k++) {
+          var t = k / (n + 1);
+          var x = a[0] + dx * t, y = a[1] + dy * t;
+
+          var size = 5;
+          var f = [[x + ux * size, y + uy * size],
+                   [x - ux * size * 0.6 + uy * size * 0.7, y - uy * size * 0.6 - ux * size * 0.7],
+                   [x - ux * size * 0.6 - uy * size * 0.7, y - uy * size * 0.6 + ux * size * 0.7]];
+          route.appendChild(svg("polygon", {
+            points: f.map(function (pt) { return pt[0] + "," + pt[1]; }).join(" "),
+            class: "arrowhead", fill: "#FF5A36", stroke: "#1A1A1A", "stroke-width": 0.8,
+            "data-leg": li
+          }));
+        }
+      }
+    });
+    if (S.legHi >= 0) {
+      var hi = route.querySelector('path[data-leg="' + S.legHi + '"]');
+      if (hi) hi.classList.add("leg-hi");
+    }
