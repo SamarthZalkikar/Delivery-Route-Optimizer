@@ -621,3 +621,87 @@ function showTip(loc, p) {
   tip.style.top = Math.max(4, sy - 8) + "px";
   wrap.appendChild(tip);
 }
+function hideTip() {
+  var wrap = $("#tooltips");
+  while (wrap && wrap.firstChild) wrap.removeChild(wrap.firstChild);
+}
+
+function bindZoomPan() {
+  var mapEl = $("#map");
+  $("#btn-zin").addEventListener("click", function () {
+    zoomAt(S.vb.x + S.vb.w / 2, S.vb.y + S.vb.h / 2, 0.8);
+  });
+  $("#btn-zout").addEventListener("click", function () {
+    zoomAt(S.vb.x + S.vb.w / 2, S.vb.y + S.vb.h / 2, 1.25);
+  });
+  $("#btn-zreset").addEventListener("click", resetZoom);
+  var drag = null;
+  mapEl.addEventListener("pointerdown", function (e) {
+
+    drag = { x: e.clientX, y: e.clientY, vx: S.vb.x, vy: S.vb.y,
+             id: e.pointerId, captured: false };
+  });
+  mapEl.addEventListener("pointermove", function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var r = mapEl.getBoundingClientRect();
+    var dx = (e.clientX - drag.x) * (S.vb.w / r.width);
+    var dy = (e.clientY - drag.y) * (S.vb.h / r.height);
+    drag.moved = Math.abs(dx) + Math.abs(dy);
+    if (!drag.captured && drag.moved > 5) {
+
+      try { mapEl.setPointerCapture(drag.id); } catch (err) {   }
+      drag.captured = true;
+      mapEl.classList.add("grabbing");
+    }
+    if (drag.captured) {
+      S.vb.x = drag.vx - dx;
+      S.vb.y = drag.vy - dy;
+      clampVB();
+      applyViewBox();
+    }
+  });
+  function endDrag(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (drag.captured) {
+      S._suppressClick = true;
+      setTimeout(function () { S._suppressClick = false; }, 50);
+      try { mapEl.releasePointerCapture(drag.id); } catch (err) {   }
+    }
+    mapEl.classList.remove("grabbing");
+    drag = null;
+  }
+  mapEl.addEventListener("pointerup", endDrag);
+  mapEl.addEventListener("pointercancel", endDrag);
+}
+
+function markStale() {
+  if (S.plan.result) S.plan.stale = true;
+}
+
+function toggleStop(id) {
+  if (id === DEPOT_ID) {
+    toast("DEPOT FIXED", "THE DEPOT ANCHORS EVERY ROUTE AND NEVER BECOMES A STOP.", true);
+    return;
+  }
+  var hadResult = !!S.plan.result;
+  var at = S.plan.stops.indexOf(id);
+  if (at >= 0) S.plan.stops.splice(at, 1);
+  else {
+    if (S.plan.stops.length >= 12) {
+      toast("STOP LIMIT", "AT MOST 12 STOPS PER ROUTE. CLEAR ONE FIRST.", true);
+      return;
+    }
+    S.plan.stops.push(id);
+  }
+  if (hadResult) markStale();
+  S.legHi = -1;
+  drawMap();
+  renderPlan();
+  savePrefs();
+}
+
+function updateEngineWarn() {
+  var warn = $("#engine-warn"), engine = $("#opt-engine").value;
+  if (engine === "exact" && S.plan.stops.length > 9) warn.classList.remove("hidden");
+  else warn.classList.add("hidden");
+}
