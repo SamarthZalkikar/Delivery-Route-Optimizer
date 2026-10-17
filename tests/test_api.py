@@ -138,3 +138,33 @@ def js_place_labels(locs, roads, route_stops):
     return placed
 
 class TestRouteAPI(unittest.TestCase):
+    def setUp(self):
+        self.c = A.app.test_client()
+
+    def solve(self, stops, **extra):
+        body = {"stops": stops, "depot": 0}
+        body.update(extra)
+        return self.c.post("/api/optimize", json=body)
+
+    def test_8_stop_route_starts_and_ends_at_depot(self):
+        r = self.solve([1, 2, 3, 4, 5, 7, 8, 13])
+        self.assertEqual(r.status_code, 200)
+        res = r.get_json()
+        self.assertEqual(res["legs"][0]["from"], 0)
+        self.assertEqual(res["legs"][-1]["to"], 0)
+        self.assertEqual(res["cum_total"], round(res["distance"], 1))
+
+    def test_leg_km_sum_equals_distance(self):
+        res = self.solve([1, 2, 3, 4, 5, 7, 8, 13]).get_json()
+        total = sum(round(l["km"], 1) for l in res["legs"])
+        self.assertAlmostEqual(total, round(res["distance"], 1), places=1)
+
+    def test_one_stop_round_trip(self):
+        res = self.solve([11]).get_json()
+        self.assertEqual(len(res["legs"]), 2)
+        self.assertEqual(res["legs"][0]["to"], 11)
+        self.assertEqual(res["legs"][1]["to"], 0)
+
+    def test_nine_stops_exact(self):
+        res = self.solve(list(range(1, 10)), engine="exact").get_json()
+        self.assertIn("BACKTRACKING", res["engine_label"])
