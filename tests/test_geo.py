@@ -39,3 +39,30 @@ class TestGridMapping(unittest.TestCase):
                                   DEG_LAT_PER_UNIT, DEG_LNG_PER_UNIT)
             self.assertAlmostEqual(x, x2, places=6)
             self.assertAlmostEqual(y, y2, places=6)
+
+    def test_center_is_50_50(self):
+        x, y = latlng_to_xy(CITY_CENTER[0], CITY_CENTER[1], CITY_CENTER,
+                            DEG_LAT_PER_UNIT, DEG_LNG_PER_UNIT)
+        self.assertAlmostEqual(x, 50.0, places=9)
+        self.assertAlmostEqual(y, 50.0, places=9)
+
+    def test_y_grows_south(self):
+        lat, _lng = xy_to_latlng(50, 60, CITY_CENTER,
+                                 DEG_LAT_PER_UNIT, DEG_LNG_PER_UNIT)
+        self.assertLess(lat, CITY_CENTER[0])
+
+class TestValidation(unittest.TestCase):
+
+    def test_valid_latlng(self):
+        self.assertTrue(valid_latlng(21.14, 79.08))
+        self.assertFalse(valid_latlng(95, 79.08))
+        self.assertFalse(valid_latlng("21", 79.08))
+        self.assertFalse(valid_latlng(True, 79.08))
+        self.assertFalse(valid_latlng(None, None))
+
+    def test_near_center(self):
+        self.assertTrue(near_center(21.15, 79.09, CITY_CENTER))
+        self.assertFalse(near_center(30.0, 79.09, CITY_CENTER))
+
+if __name__ == "__main__":
+    unittest.main()
