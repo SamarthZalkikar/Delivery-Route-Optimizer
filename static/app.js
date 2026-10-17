@@ -271,3 +271,121 @@ function resetZoom() {
   S.vb = { x: 0, y: 0, w: CANV.W, h: CANV.H };
   applyViewBox();
 }
+function zoomAt(cx, cy, factor) {
+  var nw = S.vb.w * factor, nh = S.vb.h * factor;
+  var dx = (cx - S.vb.x) / S.vb.w, dy = (cy - S.vb.y) / S.vb.h;
+  S.vb.x = cx - dx * nw;
+  S.vb.y = cy - dy * nh;
+  S.vb.w = nw; S.vb.h = nh;
+  clampVB();
+  applyViewBox();
+}
+
+function candidates(half) {
+  return [
+    [half + 8, 4, "start"],
+    [half + 8, -(half + 2), "start"],
+    [0, -(half + 11), "middle"],
+    [half + 8, half + 17, "start"],
+    [0, half + 18, "middle"],
+    [-(half + 8), 4, "end"],
+    [-(half + 8), -(half + 2), "end"],
+    [-(half + 8), half + 17, "end"]
+  ];
+}
+
+function labelRect(cx, cy, cand, wtxt) {
+  var dx = cand[0], dy = cand[1], anchor = cand[2];
+  var left;
+  if (anchor === "start") left = cx + dx;
+  else if (anchor === "middle") left = cx + dx - wtxt / 2;
+  else left = cx + dx - wtxt;
+  var ty = cy + dy;
+  return [left, ty - 10, left + wtxt, ty + 3];
+}
+
+function rectHit(a, b) {
+  return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+}
+function segHitsRect(x1, y1, x2, y2, r) {
+
+  var steps = Math.ceil(Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / 10) + 1;
+  for (var i = 0; i <= steps; i++) {
+    var t = i / steps;
+    var x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t;
+    if (x > r[0] && x < r[2] && y > r[1] && y < r[3]) return true;
+  }
+  return false;
+}
+
+function shortCode(name) {
+  var words = name.split(/\s+/);
+  if (words.length >= 2) {
+    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  }
+  return name.replace(/[^A-Za-z0-9]/g, "").substring(0, 2).toUpperCase() || "??";
+}
+
+function roadSegs() {
+  var out = [];
+  S.roads.forEach(function (r) {
+    var a = px(r.u), b = px(r.v);
+    out.push([a.x, a.y, b.x, b.y]);
+  });
+  return out;
+}
+
+function placeLabels() {
+  var placed = [];
+  var placedRects = [];
+  var nodeRects = [];
+  S.locations.forEach(function (l) {
+    var p = px(l.id);
+    var half = l.id === DEPOT_ID ? DEPOT_HALF : NODE_HALF;
+    nodeRects.push([p.x - half - 1, p.y - half - 1, p.x + half + 1, p.y + half + 1]);
+  });
+
+  S.plan.stops.forEach(function (sid) {
+    var p = px(sid);
+    if (p.x === 0 && p.y === 0) return;
+    nodeRects.push([p.x + NODE_HALF - 1, p.y - NODE_HALF - 17,
+                    p.x + NODE_HALF + 17, p.y - NODE_HALF + 1]);
+  });
+  var segs = roadSegs();
+
+  var order = [];
+  if (S.plan.result && Array.isArray(S.plan.result.stops)) {
+    order.push(DEPOT_ID);
+    S.plan.result.stops.forEach(function (id) { order.push(id); });
+  } else {
+    order.push(DEPOT_ID);
+  }
+  S.locations.forEach(function (l) {
+    if (order.indexOf(l.id) === -1) order.push(l.id);
+  });
+
+  order.forEach(function (id) {
+    var loc = locById(id);
+    if (!loc) return;
+    var p = px(id);
+    var half = id === DEPOT_ID ? DEPOT_HALF : NODE_HALF;
+    var cands = candidates(half);
+
+    var best = null;
+    var tryTexts = [loc.name.toUpperCase(), shortCode(loc.name)];
+    for (var t = 0; t < tryTexts.length && !best; t++) {
+      var wtxt = Math.max(20, tryTexts[t].length * CHAR_W);
+      var scored = [];
+      for (var i = 0; i < cands.length; i++) {
+        var r = labelRect(p.x, p.y, cands[i], wtxt);
+        var score = i * 0.6;
+        for (var j = 0; j < placedRects.length; j++) {
+          if (rectHit(r, placedRects[j].rect)) score += 100;
+        }
+        for (var k2 = 0; k2 < nodeRects.length; k2++) {
+          if (rectHit(r, nodeRects[k2])) score += 70;
+        }
+        for (var m = 0; m < segs.length; m++) {
+          var sg = segs[m];
+          if (segHitsRect(sg[0], sg[1], sg[2], sg[3], r)) score += 20;
+        }
