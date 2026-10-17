@@ -967,3 +967,113 @@ function exportText() {
   } else {
     fallbackCopy(line);
   }
+  function fallbackCopy(text) {
+    var ta = el("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); toast("COPIED", "ROUTE TEXT IS ON THE CLIPBOARD."); }
+    catch (e) { toast("COPY FAILED", "CLIPBOARD UNAVAILABLE - USE DOWNLOAD JSON.", true); }
+    document.body.removeChild(ta);
+  }
+}
+function exportJson() {
+  if (!S.plan.result) { toast("NO ROUTE", "SOLVE A ROUTE FIRST.", true); return; }
+  var blob = new Blob([JSON.stringify(S.plan.result, null, 2)], { type: "application/json" });
+  var a = el("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "route.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  toast("SAVED", "route.json downloaded.");
+}
+
+function hideTruck() {
+  var truck = $("#m-truck");
+  if (truck) truck.classList.add("hidden");
+}
+function playRoute() {
+  if (!S.plan.result || !S.plan.result.geometry) {
+    toast("NO ROUTE", "SOLVE A ROUTE BEFORE PLAYING THE DELIVERY.", true);
+    return;
+  }
+  if (window.MV && MV.mode === "map" && MV.leaf) {
+
+    MV.playRoute(S.plan.result.geometry, REDUCED);
+    return;
+  }
+  var truck = $("#m-truck");
+  while (truck.firstChild) truck.removeChild(truck.firstChild);
+  truck.appendChild(svg("rect", { x: -7, y: -5, width: 10, height: 7, class: "tr-body" }));
+  truck.appendChild(svg("rect", { x: 3, y: -5, width: 5, height: 7, class: "tr-cab" }));
+  var waypoints = [];
+  S.plan.result.geometry.forEach(function (hop) {
+    hop.forEach(function (nid) {
+      var p = px(nid);
+      waypoints.push([p.x, p.y]);
+    });
+  });
+  if (REDUCED) {
+    truck.classList.add("hidden");
+    return;
+  }
+  truck.classList.remove("hidden");
+  var i = 0;
+  function step() {
+    if (i >= waypoints.length) {
+      setTimeout(function () { truck.classList.add("hidden"); }, 900);
+      return;
+    }
+    var t = svg("animateTransform", {
+      attributeName: "transform", type: "translate",
+      calcMode: "discrete", fill: "freeze",
+      dur: "0.75s", begin: "indefinite"
+    });
+
+    var from = i > 0 ? waypoints[i - 1] : waypoints[0];
+    var to = waypoints[i];
+    var keyTimes = "0;0.25;0.5;0.75;1";
+    var values = from[0] + "," + from[1] + ";" +
+      (from[0] * 0.75 + to[0] * 0.25) + "," + (from[1] * 0.75 + to[1] * 0.25) + ";" +
+      (from[0] * 0.5 + to[0] * 0.5) + "," + (from[1] * 0.5 + to[1] * 0.5) + ";" +
+      (from[0] * 0.25 + to[0] * 0.75) + "," + (from[1] * 0.25 + to[1] * 0.75) + ";" +
+      to[0] + "," + to[1];
+    t.setAttribute("values", values);
+    t.setAttribute("keyTimes", keyTimes);
+    truck.appendChild(t);
+    try { t.beginElement(); } catch (e) {   }
+    i++;
+    setTimeout(step, 790);
+  }
+  step();
+}
+
+function bindAutocomplete() {
+  var box = $("#locq"), list = $("#locq-list");
+  var timer = null;
+  box.addEventListener("input", function () {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () {
+      var q = box.value.trim();
+      if (!q) { list.textContent = ""; return; }
+      api("/api/search?q=" + encodeURIComponent(q)).then(function (res) {
+        list.textContent = "";
+        res.matches.forEach(function (m) {
+          var li = el("li", null, m.name.toUpperCase());
+          li.setAttribute("role", "option");
+          li.setAttribute("data-id", m.id);
+          li.tabIndex = "0";
+          li.addEventListener("click", function () { pickMatch(m, box, list); });
+          li.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") { e.preventDefault(); pickMatch(m, box, list); }
+            if (e.key === " ") { e.preventDefault(); toggleStop(m.id); }
+          });
+          list.appendChild(li);
+        });
+      }).catch(function () { list.textContent = ""; });
+    }, 180);
+  });
+  box.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") list.textContent = "";
+  });
