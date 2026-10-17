@@ -191,3 +191,46 @@
 
     <div class="panel col-5">
       <div class="panel-title"><span>ADD ORDER</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <label class="lbl" for="f-cust">CUSTOMER</label>
+        <input class="in w100" id="f-cust" maxlength="40" placeholder="CUSTOMER NAME">
+        <label class="lbl" for="f-loc">LOCATION</label>
+        <select class="sel w100" id="f-loc" aria-label="Order location"></select>
+        <label class="lbl" for="f-prio">PRIORITY</label>
+        <select class="sel w100" id="f-prio" aria-label="Order priority">
+          <option value="1">1 = EXPRESS</option>
+          <option value="2" selected>2 = STANDARD</option>
+          <option value="3">3 = ECONOMY</option>
+        </select>
+        <label class="lbl" for="f-weight">WEIGHT (KG)</label>
+        <input class="in w100" id="f-weight" type="number" min="0.1" max="500" step="0.1" value="2">
+        <button class="btn btn-acc" id="btn-add-order">+ ADD ORDER</button>
+      </div>
+    </div>
+
+    <div class="panel col-4">
+      <div class="panel-title"><span>DISPATCH / UNDO</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <p class="data">NEXT PRIORITY POP: <b id="d-next">--</b></p>
+        <button class="btn btn-acc" id="btn-dispatch">DISPATCH PRIORITY POP &gt;&gt;</button>
+        <button class="btn" id="btn-undo">UNDO LAST ACTION</button>
+        <div class="routes-history">
+          <p class="lbl">ROUND-ROBIN DRIVERS (CIRCULAR QUEUE)</p>
+          <ul class="ringlist" id="ring-list"></ul>
+        </div>
+        <div class="deliv">
+          <p class="lbl">DISPATCHED LOG</p>
+          <p class="data" id="d-log">--</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel col-3">
+      <div class="panel-title"><span>FIND BY ID</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <label class="lbl" for="f-oid">ORDER ID</label>
+        <input class="in w100" id="f-oid" placeholder="ORD-1001">
+        <button class="btn" id="btn-lookup">LOOKUP</button>
+        <div id="lookup-out" class="empty-state">LOOKUP VIA AVL TREE<br>(O log n SEARCH)</div>
+      </div>
+    </div>
