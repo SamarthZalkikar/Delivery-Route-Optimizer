@@ -1171,3 +1171,135 @@ function renderDispatchLog(state) {
   state.pending_sorted.forEach(function (oid) {
     state.orders.forEach(function (o) { if (o.id === oid && !next) next = o.id; });
   });
+  $("#d-next").textContent = next || "--";
+}
+
+function addOrder(ev) {
+  ev.preventDefault();
+  var payload = {
+    customer: $("#f-cust").value,
+    location: parseInt($("#f-loc").value, 10),
+    priority: parseInt($("#f-prio").value, 10),
+    weight: parseFloat($("#f-weight").value)
+  };
+  api("/api/orders", { method: "POST", body: payload }).then(function (res) {
+    $("#f-cust").value = "";
+    toast("ORDER ADDED", res.order.id + " -> " + res.order.location_name.toUpperCase());
+    refreshState();
+  }).catch(function (e) { toast("ADD FAILED", String(e).toUpperCase(), true); });
+}
+
+function dispatchNext() {
+  api("/api/orders/dispatch", { method: "POST" }).then(function (res) {
+    toast("DISPATCHED", res.order.id + " assigned to " +
+      res.order.driver.replace(/^Driver-/, "").toUpperCase());
+    refreshState();
+  }).catch(function (e) { toast("DISPATCH FAILED", String(e).toUpperCase(), true); });
+}
+
+function undoLast() {
+  api("/api/orders/undo", { method: "POST" }).then(function (res) {
+    toast("UNDO DONE", res.undone.toUpperCase() + " REVERTED.");
+    refreshState();
+  }).catch(function (e) { toast("UNDO FAILED", String(e).toUpperCase(), true); });
+}
+
+function lookupOrder() {
+  var id = $("#f-oid").value.trim().toUpperCase();
+  if (!id) { toast("MISSING ID", "TYPE AN ORDER ID LIKE ORD-1001.", true); return; }
+  api("/api/orders/" + encodeURIComponent(id)).then(function (res) {
+    var o = res.order;
+    var box = $("#lookup-out");
+    box.className = "empty-state";
+    box.textContent = "";
+    box.appendChild(el("p", "data", o.id + "  " + o.customer.toUpperCase()));
+    box.appendChild(el("p", "data", o.location_name.toUpperCase() + "  P" + o.priority +
+      "  " + o.weight + "kg  " + o.status));
+    box.appendChild(el("p", "data", "AVL STEPS: " + res.search_steps + "  INDEX: " + res.index));
+    box.appendChild(el("p", "data", "B+ LEAF-CHAIN: " + (res.bplus_chain || []).join(" - ")));
+  }).catch(function (e) {
+    var box = $("#lookup-out");
+    box.className = "empty-state";
+    box.textContent = "NOT FOUND: " + String(e).toUpperCase();
+  });
+}
+
+function renderNetwork(net) {
+  var nameOf = function (id) {
+    var l = locById(id);
+    return l ? l.name.toUpperCase() : "#" + id;
+  };
+  $("#prim-total").textContent = "TOTAL " + net.prim.total;
+  $("#krusk-total").textContent = "TOTAL " + net.kruskal.total;
+  var pe = $("#prim-edges"), ke = $("#krusk-edges");
+  pe.textContent = ""; ke.textContent = "";
+  net.prim.edges.forEach(function (e) {
+    pe.appendChild(el("li", null, nameOf(e[0]) + " -- " + nameOf(e[1]) + "  [" + e[2] + "]"));
+  });
+  net.kruskal.edges.forEach(function (e) {
+    ke.appendChild(el("li", null, nameOf(e[0]) + " -- " + nameOf(e[1]) + "  [" + e[2] + "]"));
+  });
+  $("#comp-count").textContent = "COUNT: " + net.component_count +
+    (net.component_count === 1 ? " (CONNECTED)" : " (DISCONNECTED!)");
+  var comps = $("#comps");
+  comps.textContent = "";
+  net.components.forEach(function (c, i) {
+    comps.appendChild(el("li", null, "COMP-" + (i + 1) + ": " +
+      c.map(function (id) { return id + " " + nameOf(id); }).join(", ")));
+  });
+  $("#sparse-stat").textContent = "SHAPE " + net.sparse_shape[0] + "x" + net.sparse_shape[1] +
+    "  NNZ " + net.adjacency_count * 2 + "  DENSITY " + (net.density * 100) + "%";
+  var sv = $("#sparse-view");
+  sv.textContent = "";
+  net.sparse_rows.forEach(function (row) {
+    var cells = row[1].map(function (cv) { return cv[0] + ":" + cv[1]; }).join(" ");
+    var r = el("div", "sparse-row");
+    r.textContent = "R" + row[0] + (row[1].length ? " | " + cells : " | (ZERO ROW)");
+    sv.appendChild(r);
+  });
+}
+
+function runTraverse(mode) {
+  var start = $("#tr-start").value;
+  api("/api/traverse?start=" + start + "&mode=" + mode).then(function (res) {
+    $("#tr-struct").textContent = res.structure;
+    var out = $("#tr-out");
+    out.textContent = "";
+    res.order.forEach(function (id, i) {
+      var l = locById(id);
+      var li = el("li", "lvl" + (res.levels ? res.levels[i] : (i < 3 ? i : 2)));
+      li.appendChild(document.createTextNode((l ? l.name.toUpperCase() : "#" + id) + " "));
+      li.appendChild(el("em", null, res.levels ? ("L" + res.levels[i]) : ("#" + (i + 1))));
+      out.appendChild(li);
+    });
+  }).catch(function (e) { toast("TRAVERSE FAILED", String(e).toUpperCase(), true); });
+}
+
+function runBench() {
+  api("/api/sort-bench", { method: "POST",
+    body: { size: parseInt($("#sb-n").value, 10), range: parseInt($("#sb-r").value, 10) } })
+  .then(function (res) {
+    $("#bench-out").classList.add("hidden");
+    var tb = $("#bench-tbl");
+    tb.classList.remove("hidden");
+    var body = tb.querySelector("tbody");
+    body.textContent = "";
+    res.results.forEach(function (r) {
+      var tr = el("tr");
+      tr.appendChild(el("td", null, r.algo.toUpperCase()));
+      tr.appendChild(el("td", null, String(r.comparisons)));
+      tr.appendChild(el("td", null, String(r.moves)));
+      tr.appendChild(el("td", null, String(r.ms)));
+      tr.appendChild(el("td", null, r.stable ? "STABLE" : "UNSTABLE"));
+      tr.appendChild(el("td", null, r.worst));
+      body.appendChild(tr);
+    });
+    drawBenchChart(res.results);
+    $("#ext-stat").textContent = res.external.passes + " PASS(ES) OVER 80 KEYS (FAN-IN 10, CHUNK 10)";
+    var out = $("#ext-out");
+    out.textContent = "";
+    out.appendChild(el("div", "ext-arrow", "> RUN FILES (INTERNAL MERGE SORT, CHUNK 10):"));
+    var ln = el("div", "ext-step");
+    res.external.chunks.forEach(function (ch) {
+      ln.appendChild(el("span", "ext-chunk", ch.join(" ")));
+    });
