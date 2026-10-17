@@ -838,3 +838,132 @@ function prioBadgeText(p) {
   var b = el("span", "badge-pri " + meta[1], meta[2]);
   return b;
 }
+
+function renderTable(res) {
+  var tb = $("#route-tbl tbody");
+  tb.textContent = "";
+  var sum = 0;
+  res.legs.forEach(function (leg) {
+    sum = round1(sum + leg.km);
+    var tr = el("tr");
+    tr.setAttribute("data-leg", String(leg.i));
+    tr.tabIndex = "0";
+    tr.setAttribute("aria-label", "leg " + leg.i + " from " + leg.from_name +
+      " to " + leg.to_name + ", " + leg.km + " km");
+    tr.addEventListener("click", function () {
+      S.legHi = (S.legHi === leg.i ? -1 : leg.i);
+      $$("#route-tbl tbody tr").forEach(function (row) {
+        row.classList.toggle("leghi", parseInt(row.getAttribute("data-leg"), 10) === S.legHi);
+      });
+      drawMap();
+    });
+    tr.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); }
+    });
+    tr.addEventListener("mouseenter", function () {
+      if (window.MV) MV.highlightLeg(leg.i);
+    });
+    tr.addEventListener("mouseleave", function () {
+      if (window.MV) MV.highlightLeg(S.legHi);
+    });
+    var td0 = el("td", null, String(leg.i + 1));
+    td0.setAttribute("data-th", "#");
+    tr.appendChild(td0);
+    var td1 = el("td", null, leg.from_name.toUpperCase() + " -> " +
+      leg.to_name.toUpperCase());
+    td1.setAttribute("data-th", "FROM > TO");
+    tr.appendChild(td1);
+    var td2 = el("td", null, fmtKM(leg.km));
+    td2.setAttribute("data-th", "LEG KM");
+    tr.appendChild(td2);
+    var td3 = el("td", null, fmtKM(leg.cum));
+    td3.setAttribute("data-th", "CUM KM");
+    tr.appendChild(td3);
+    var td4 = el("td");
+    td4.setAttribute("data-th", "PRIORITY");
+    td4.appendChild(leg.prio === null ? depotPriCell() : prioBadgeText(leg.prio));
+    tr.appendChild(td4);
+    tb.appendChild(tr);
+  });
+
+  var ftr = el("tr");
+  ftr.className = "total-row";
+  var fc = el("td", null, "TOTAL");
+  fc.setAttribute("colspan", "2");
+  ftr.appendChild(fc);
+  ftr.appendChild(el("td", null, fmtKM(sum)));
+  ftr.appendChild(el("td", null, res.legs.length ? fmtKM(res.legs[res.legs.length - 1].cum) : "-"));
+  var fp = el("td");
+  fp.appendChild(depotPriCell());
+  ftr.appendChild(fp);
+  tb.appendChild(ftr);
+  var target = round1(res.distance);
+  if (Math.abs(sum - target) > 0.05) {
+    console.warn("[route] TOTAL leg km " + sum + " != DISTANCE tile " + target);
+  }
+}
+
+function prioBadge(p) {
+  var meta = PRIORITY_LABEL[p];
+  var b = el("span", "badge " + meta[1], meta[0]);
+  b.title = meta[2];
+  return b;
+}
+
+function renderHow(res) {
+  $("#hs-algo").textContent = "ALGO: " + res.algorithm.toUpperCase();
+  $("#hs-cpl").textContent = "COMPLEXITY: " + res.complexity.toUpperCase();
+  $("#hs-explored").textContent = "NODES EXPLORED: " + res.nodes_explored +
+    " - BRANCHES PRUNED: " + res.pruned;
+  var chips = $("#hs-chips");
+  chips.textContent = "";
+  res.dsa_used.forEach(function (chip) {
+    var c = el("button", "dchip", chip);
+    c.setAttribute("aria-label", chip + " in dsa map tab");
+    c.addEventListener("click", function () {
+      setTab("dsamap");
+      var tb = $("#dsamap-tbl tbody");
+      if (tb && tb.firstElementChild) tb.firstElementChild.scrollIntoView();
+    });
+    chips.appendChild(c);
+  });
+}
+
+function runCompare() {
+  if (!S.plan.stops.length) {
+    toast("NO STOPS", "QUEUE AT LEAST ONE STOP BEFORE COMPARING ENGINES.", true);
+    return;
+  }
+  api("/api/optimize/compare", { method: "POST",
+    body: { stops: S.plan.stops, depot: DEPOT_ID } }).then(function (res) {
+    $("#cmp-out").classList.remove("hidden");
+    var tb = $("#cmp-tbl tbody");
+    tb.textContent = "";
+    res.rows.forEach(function (row) {
+      var tr = el("tr");
+      if (row.best) tr.className = "cmp-best";
+      tr.appendChild(el("td", null, row.engine + (row.best ? " BEST" : "")));
+      tr.appendChild(el("td", null, row.km === null ? "-" :
+        (Math.round(row.km * 10) / 10).toFixed(1)));
+      tr.appendChild(el("td", null, row.ms.toFixed(1)));
+      tb.appendChild(tr);
+    });
+  }).catch(function (e) { toast("COMPARE FAILED", String(e).toUpperCase(), true); });
+}
+
+function exportText() {
+  if (!S.plan.result) { toast("NO ROUTE", "SOLVE A ROUTE FIRST.", true); return; }
+  var r = S.plan.result;
+  var line = "ROUTE: DEPOT - " + r.stop_names.map(function (n) {
+    return n.toUpperCase();
+  }).join(" - ") + " - DEPOT\nDISTANCE: " + r.distance + " KM  COST: Rs " +
+    Math.round(r.cost) + "  ETA: " + fmtETA(r.eta_min) + "  ENGINE: " + r.algorithm;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(line).then(function () {
+      toast("COPIED", "ROUTE TEXT IS ON THE CLIPBOARD.");
+    }, function () {
+      fallbackCopy(line);
+    });
+  } else {
+    fallbackCopy(line);
+  }
