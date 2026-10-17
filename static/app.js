@@ -705,3 +705,136 @@ function updateEngineWarn() {
   if (engine === "exact" && S.plan.stops.length > 9) warn.classList.remove("hidden");
   else warn.classList.add("hidden");
 }
+
+var ENGINE_NAMES = { exact: "EXACT (BACKTRACKING)",
+                     nn: "NEAREST NEIGHBOUR",
+                     nn2opt: "NEAREST + 2-OPT" };
+
+function round1(v) { return Math.round(v * 10) / 10; }
+var INFMT = new Intl.NumberFormat("en-IN");
+
+function fmtKM(v) { return round1(v).toFixed(1); }
+function fmtRs(v) { return INFMT.format(Math.round(v)); }
+function fmtETA(mins) {
+  var h = Math.floor(mins / 60), m = mins % 60;
+  return h + "h " + (m < 10 ? "0" : "") + m + "m";
+}
+function fmtMS(ms) { return (Math.round(ms * 100) / 100).toFixed(2); }
+
+function planStopsForChips() {
+  return (S.plan.result && !S.plan.stale) ? S.plan.result.stops : S.plan.stops;
+}
+
+function renderChips() {
+  var box = $("#stop-chips");
+  box.textContent = "";
+  var list = planStopsForChips();
+  if (!list.length) {
+    box.appendChild(el("span", "chip empty", "NO STOPS QUEUED - SELECT ON THE MAP"));
+  } else {
+    list.forEach(function (id) {
+      var loc = locById(id);
+      var chip = el("span", "chip");
+      chip.appendChild(el("span", "chipname", loc ? loc.name.toUpperCase() : "#" + id));
+      var x = el("button", "chipx", "\u00D7");
+      x.setAttribute("aria-label", "remove " + (loc ? loc.name : "#" + id));
+      x.addEventListener("click", function () { toggleStop(id); });
+      chip.appendChild(x);
+      box.appendChild(chip);
+    });
+  }
+  updateEngineWarn();
+}
+
+function renderEngineNote() {
+  var note = $("#note-engine");
+  var engine = $("#opt-engine").value;
+  if (S.plan.stale) {
+    note.textContent = "STOPS CHANGED - RUN OPTIMIZER AGAIN (NOW " +
+      S.plan.stops.length + " STOPS)";
+    return;
+  }
+  if (!S.plan.result) {
+    note.textContent = engine === "auto" ?
+      "ENGINE: AUTO - RESOLVES TO EXACT (<=9) OR NEAREST + 2-OPT (>9) WHEN YOU RUN" :
+      "ENGINE: " + (ENGINE_NAMES[engine] || engine).toUpperCase() +
+      (engine === "exact" ? " - NEEDS <= 9 STOPS" : "");
+    return;
+  }
+  var res = S.plan.result;
+  var used = (ENGINE_NAMES[res.engine] || res.engine_label).toUpperCase();
+  var n = res.stops.length;
+  note.textContent = res.requested === "auto" ?
+    "AUTO: USING " + used + " FOR " + n + " STOPS" :
+    "ENGINE: " + used + " FOR " + n + " STOPS";
+  if (res.fallback_note) note.textContent += " - " + res.fallback_note.toUpperCase();
+}
+
+function renderPlan() {
+  var hasResult = !!S.plan.result;
+  $("#opt-placeholder").classList.toggle("hidden",
+    !(S.plan.stops.length === 0 && !hasResult));
+  $("#opt-out").classList.toggle("hidden", !hasResult);
+  $("#stale-warn").classList.toggle("hidden", !S.plan.stale);
+  $("#plan-tiles").classList.toggle("stale", S.plan.stale);
+  renderEngineNote();
+  if (hasResult) {
+    renderTiles(S.plan.result);
+    renderTable(S.plan.result);
+    renderHow(S.plan.result);
+    $("#drv-name").textContent = nextDriverName();
+  }
+  $("#btn-play").disabled = !hasResult;
+  renderChips();
+}
+
+function nextDriverName() {
+  return S.drivers.length ?
+    S.drivers[0].replace(/^Driver-/, "").toUpperCase() : "--";
+}
+
+function renderTiles(res) {
+  $("#t-dist").textContent = fmtKM(res.distance);
+  $("#t-cost").textContent = fmtRs(res.cost);
+  $("#t-eta").textContent = fmtETA(res.eta_min);
+  $("#t-stops").textContent = String(res.stops.length);
+  $("#t-ms").textContent = fmtMS(res.ms);
+  $("#tile-cost").title = "cost(d) = " + res.cost_terms;
+}
+
+function runOptimize() {
+  if (!S.plan.stops.length) {
+    toast("NO STOPS", "CLICK AT LEAST ONE SQUARE ON THE MAP FIRST.", true);
+    renderPlan();
+    return;
+  }
+  var payload = {
+    stops: S.plan.stops,
+    engine: $("#opt-engine").value,
+    priority_first: $("#prio-first").checked,
+    depot: DEPOT_ID
+  };
+  api("/api/optimize", { method: "POST", body: payload }).then(function (res) {
+    res.requested = payload.engine;
+    S.plan.result = res;
+    S.plan.stale = false;
+    S.legHi = -1;
+    $("#cmp-out").classList.add("hidden");
+    renderPlan();
+    drawMap();
+    hideTruck();
+    MV.hideTruck();
+    toast("ROUTE READY", fmtKM(res.distance) + " KM VIA " + res.engine_label);
+  }).catch(function (e) { toast("OPTIMIZER FAILED", String(e).toUpperCase(), true); });
+}
+
+function depotPriCell() {
+  var b = el("span", "badge-pri badge-depot", "-");
+  b.title = "depot leg - no priority";
+  return b;
+}
+function prioBadgeText(p) {
+  var meta = PRIORITY_LABEL[p];
+  var b = el("span", "badge-pri " + meta[1], meta[2]);
+  return b;
+}
