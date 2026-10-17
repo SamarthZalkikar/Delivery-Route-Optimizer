@@ -489,3 +489,135 @@ function drawMap() {
       var hi = route.querySelector('path[data-leg="' + S.legHi + '"]');
       if (hi) hi.classList.add("leg-hi");
     }
+
+    var truck = $("#m-truck");
+    while (truck.firstChild) truck.removeChild(truck.firstChild);
+    var first = waypoints[0][0];
+    truck.setAttribute("transform", "translate(" + first[0] + "," + first[1] + ")");
+    var body = svg("rect", { x: -7, y: -5, width: 10, height: 7, class: "tr-body" });
+    var cab = svg("rect", { x: 3, y: -5, width: 5, height: 7, class: "tr-cab" });
+    truck.appendChild(body); truck.appendChild(cab);
+  } else {
+    var truck2 = $("#m-truck");
+    truck2.classList.add("hidden");
+    while (truck2.firstChild) truck2.removeChild(truck2.firstChild);
+  }
+
+  S.locations.forEach(function (loc) {
+    var p = px(loc.id);
+    var isDepot = loc.id === DEPOT_ID;
+    var half = isDepot ? DEPOT_HALF : NODE_HALF;
+    var g = svg("g", {
+      class: "loc-g" + (isDepot ? " depot" : "")
+    });
+    var rect = svg("rect", {
+      x: p.x - half, y: p.y - half, width: half * 2, height: half * 2,
+      class: "loc-rect" + (isDepot ? "" : "") +
+             (S.plan.stops.indexOf(loc.id) >= 0 ? " sel" : ""),
+      tabindex: "0", role: "button", "data-id": loc.id,
+      "aria-label": (isDepot ? loc.name + " (depot, fixed anchor)" : loc.name +
+        " (" + loc.x + "," + loc.y + ")") + (isDepot ? "" : " -- click to queue stop")
+    });
+    rect.addEventListener("click", function () {
+      if (S._suppressClick) return;
+      nodeTapped(loc.id);
+    });
+    rect.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); nodeTapped(loc.id); }
+    });
+    rect.addEventListener("mouseenter", function () { showTip(loc, p); });
+    rect.addEventListener("mouseleave", hideTip);
+    rect.addEventListener("focus", function () { showTip(loc, p); });
+    rect.addEventListener("blur", hideTip);
+    g.appendChild(rect);
+    if (isDepot) {
+      var h = svg("text", { x: p.x, y: p.y + 5, class: "depoth", "text-anchor": "middle" });
+      h.textContent = "H";
+      g.appendChild(h);
+    }
+    var connected = S.roads.filter(function (r) { return r.u === loc.id || r.v === loc.id; }).length;
+    var tip = svg("title", null);
+    tip.textContent = loc.name + " | id " + loc.id + " | degree " + connected +
+      (isDepot ? " | DEPOT" : "");
+    g.appendChild(tip);
+    nodes.appendChild(g);
+  });
+
+  S.plan.stops.forEach(function (id) {
+    var p = px(id);
+    var isRoute = S.plan.result && S.plan.result.stops.indexOf(id) >= 0;
+    if (S.plan.result && isRoute) return;
+    badges.appendChild(badgeAt(p, null, true));
+  });
+  if (S.plan.result && Array.isArray(S.plan.result.stops)) {
+    S.plan.result.stops.forEach(function (id, i) {
+      var p = px(id);
+      badges.appendChild(badgeAt(p, i + 1, false));
+    });
+  }
+
+  while (labels.firstChild) labels.removeChild(labels.firstChild);
+  if (S.labelsMode !== "off") {
+    var placed = placeLabels();
+    placed.forEach(function (L) {
+      if (S.labelsMode === "route" && L.id !== DEPOT_ID &&
+          (!S.plan.result || S.plan.result.stops.indexOf(L.id) === -1)) return;
+      var t = svg("text", {
+        x: L.cx + L.cand[0], y: L.cy + L.cand[1],
+        class: "loc-name", "text-anchor": L.cand[2]
+      });
+      t.textContent = L.forced ? L.text : L.text;
+      var tv = svg("title", null);
+      tv.textContent = locById(L.id).name;
+      t.appendChild(tv);
+      labels.appendChild(t);
+    });
+  }
+
+  applyViewBox();
+
+  var summary = "Map with " + S.locations.length + " locations" +
+    (S.plan.result ? ", route of " + S.plan.result.stops.length + " stops, " +
+      S.plan.result.distance + " km" : "");
+  $("#map").setAttribute("aria-label", summary);
+  if (window.MV) {
+    MV.afterSchematicRedraw();
+    MV.dataChanged();
+  }
+}
+
+function badgeAt(p, num, hollow) {
+  var g = svg("g", null);
+  var size = 16, cx = p.x + NODE_HALF + 7, cy = p.y - NODE_HALF - 7;
+  g.appendChild(svg("rect", {
+    x: cx - size / 2, y: cy - size / 2, width: size, height: size,
+    class: hollow ? "badge-hollow" : "badge-rect"
+  }));
+  var t = svg("text", { x: cx, y: cy + 4, class: "badge-txt" });
+  t.textContent = hollow ? "+" : String(num);
+  g.appendChild(t);
+  return g;
+}
+
+function showTip(loc, p) {
+  hideTip();
+  var wrap = $("#tooltips");
+  var mapEl = $("#map"), wr = wrap.getBoundingClientRect(),
+      mr = mapEl.getBoundingClientRect();
+  var sx = (mr.left - wr.left) + (p.x - S.vb.x) * (mr.width / S.vb.w);
+  var sy = (mr.top - wr.top) + (p.y - S.vb.y) * (mr.height / S.vb.h);
+  var tip = el("div", "node-tip");
+  var roadsList = S.roads.filter(function (r) { return r.u === loc.id || r.v === loc.id; })
+    .map(function (r) {
+      var other = locById(r.u === loc.id ? r.v : r.u);
+      return other ? other.name + " (" + r.w + ")" : "?";
+    }).join(", ");
+  tip.innerHTML = "";
+  tip.appendChild(el("div", "tipname", loc.name));
+  tip.appendChild(el("div", null, "ID " + loc.id +
+    (loc.id === DEPOT_ID ? " - DEPOT" : "")));
+  tip.appendChild(el("div", null, "ROADS: " + roadsList));
+  tip.style.left = Math.min(wr.width - 150, Math.max(4, sx)) + "px";
+  tip.style.top = Math.max(4, sy - 8) + "px";
+  wrap.appendChild(tip);
+}
