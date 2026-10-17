@@ -1077,3 +1077,97 @@ function bindAutocomplete() {
   box.addEventListener("keydown", function (e) {
     if (e.key === "Escape") list.textContent = "";
   });
+}
+function pickMatch(m, box, list) {
+  box.value = "";
+  list.textContent = "";
+  jumpToNode(m.id);
+  pulseNode(m.id);
+  toggleStop(m.id);
+}
+function jumpToNode(id) {
+  var p = px(id);
+  S.vb.w = 300; S.vb.h = 300 * CANV.H / CANV.W;
+  S.vb.x = p.x - S.vb.w / 2;
+  S.vb.y = p.y - S.vb.h / 2;
+  clampVB();
+  applyViewBox();
+}
+function pulseNode(id) {
+  if (REDUCED) return;
+  var sel = '.loc-rect[data-id="' + id + '"]';
+  var rect = document.querySelector(sel);
+  if (!rect) return;
+  rect.classList.add("pulse");
+  setTimeout(function () { if (rect) rect.classList.remove("pulse"); }, 1000);
+}
+
+function renderLocationSelects() {
+  ["#f-loc", "#tr-start"].forEach(function (sel) {
+    var s = $(sel);
+    if (!s) return;
+    s.textContent = "";
+    S.locations.forEach(function (l) {
+      var o = el("option", null, l.id + " - " + l.name.toUpperCase());
+      o.value = String(l.id);
+      s.appendChild(o);
+    });
+  });
+}
+
+function renderQueue(state) {
+  var list = $("#heap-list");
+  list.textContent = "";
+  state.orders.forEach(function (o) {
+    if (state.pending_sorted.indexOf(o.id) === -1) return;
+    var li = el("li");
+    li.appendChild(prioBadge(o.priority));
+    li.appendChild(el("span", null, o.id + "  " + o.customer.toUpperCase() +
+      "  " + o.location_name.toUpperCase() + "  " + o.weight + "kg"));
+    list.appendChild(li);
+  });
+  if (!list.children.length) list.appendChild(el("li", null, "QUEUE EMPTY"));
+}
+
+function renderOrdersTable(state) {
+  var tb;
+  var tbl = $("#orders-tbl");
+  if (!tbl) return;
+  tb = tbl.querySelector("tbody");
+  tb.textContent = "";
+  state.orders.forEach(function (o) {
+    var tr = el("tr");
+    [o.id, o.customer.toUpperCase(), o.location_name].forEach(function (t) {
+      tr.appendChild(el("td", null, t));
+    });
+    var ptd = el("td");
+    ptd.appendChild(prioBadge(o.priority));
+    tr.appendChild(ptd);
+    tr.appendChild(el("td", null, o.weight + "kg"));
+    tr.appendChild(el("td", null, o.status));
+    tr.appendChild(el("td", null, o.driver ? o.driver.replace(/^Driver-/, "").toUpperCase() : "-"));
+    tb.appendChild(tr);
+  });
+  if (!state.orders.length) {
+    var trx = el("tr"); var tdx = el("td", null, "NO ORDERS -- TABLE EMPTY");
+    tdx.setAttribute("colspan", "7");
+    trx.appendChild(tdx); tb.appendChild(trx);
+  }
+}
+
+function renderRing(state) {
+  var ring = $("#ring-list");
+  ring.textContent = "";
+  state.drivers.forEach(function (d) {
+    ring.appendChild(el("li", null, d.replace(/^Driver-/, "").toUpperCase()));
+  });
+}
+
+function renderDispatchLog(state) {
+  var box = $("#d-log");
+  box.textContent = state.deliveries.length ?
+    state.deliveries.map(function (n) { return "ORD-" + n; }).join(" - ") : "--";
+  var next = "";
+  state.pending_sorted.forEach(function (oid) {
+    state.orders.forEach(function (o) { if (o.id === oid && !next) next = o.id; });
+  });
