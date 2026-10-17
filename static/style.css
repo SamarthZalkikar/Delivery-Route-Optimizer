@@ -383,3 +383,80 @@ body {
 .loc-g .loc-rect:hover, .loc-g .loc-rect.hov {
   fill: var(--ink);
 }
+.loc-g .loc-rect.sel { fill: var(--accent-2); stroke-width: 3; }
+.loc-g .loc-rect.hov.sel { fill: var(--ink); }
+.loc-g .loc-rect:focus-visible { stroke: var(--accent); stroke-dasharray: 3 2; outline: none; }
+.loc-g .loc-rect.pulse { animation: nodepulse .9s steps(3) 1; }
+@keyframes nodepulse {
+  0% { fill: var(--accent); }
+  50% { fill: var(--ink); }
+  100% { fill: var(--accent-2); }
+}
+
+.loc-g.depot .loc-rect {
+  fill: var(--ink); stroke: var(--ink);
+}
+.loc-g.depot .depoth { fill: var(--panel); pointer-events: none; }
+
+.loc-name {
+  font-family: var(--mono-label);
+  font-size: 13px; font-weight: 600; letter-spacing: .2px;
+  fill: var(--ink); text-transform: uppercase;
+  paint-order: stroke; stroke: var(--panel); stroke-width: 5px;
+  stroke-linejoin: miter; pointer-events: none;
+}
+.road-w {
+  font-family: var(--mono-label);
+  font-size: 12px; font-weight: 600;
+  fill: var(--ink);
+  paint-order: stroke; stroke: var(--panel); stroke-width: 5px;
+  stroke-linejoin: miter; pointer-events: none;
+}
+
+.badge-rect { fill: var(--accent-3); stroke: var(--ink); stroke-width: 1.5; }
+.badge-txt {
+  font-family: var(--mono-label); font-size: 12px; font-weight: 600;
+  fill: var(--ink); pointer-events: none; text-anchor: middle;
+}
+.badge-hollow { fill: var(--panel); stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 2 1; }
+
+.truck-g rect { stroke: var(--ink); stroke-width: 1; }
+.truck-g .tr-body { fill: var(--accent-3); }
+.truck-g .tr-cab  { fill: var(--accent); }
+
+.zoombar {
+  position: absolute; top: 8px; right: 8px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.btn-zoom {
+  width: 44px; height: 44px; padding: 0; font-size: 14px; display: grid;
+  place-items: center;
+}
+
+.tooltips { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+.node-tip {
+  position: absolute; transform: translate(10px, -10px);
+  background: var(--panel); border: var(--border); box-shadow: var(--shadow);
+  font-family: var(--mono-label); font-size: 12px;
+  padding: 6px 8px; min-width: 130px; z-index: 40;
+}
+.node-tip .tipname { font-weight: 700; }
+
+.locsearch { display: flex; gap: 8px; align-items: center; position: relative; flex-wrap: wrap;
+  margin-bottom: 16px; }
+.ac-list {
+  position: absolute; top: 44px; left: 0; z-index: 40;
+  list-style: none; width: 100%; max-width: 420px;
+  background: var(--panel); border: var(--border); box-shadow: var(--shadow);
+  display: none;
+}
+#locq-list:not(:empty) { display: block; }
+.ac-list li { padding: 8px 10px; cursor: pointer; border-bottom: 2px solid var(--ink);
+  font-family: var(--mono-label); font-size: 12px; }
+.ac-list li:hover, .ac-list li.ac-active { background: var(--accent-2); }
+
+.badge {
+  font-family: var(--px); font-size: 12px;
+  width: 26px; height: 26px; display: inline-grid; place-items: center;
+  border: 2px solid var(--ink); vertical-align: middle;
+}
