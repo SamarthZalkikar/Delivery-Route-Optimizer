@@ -292,3 +292,94 @@ body {
   border-top: 3px solid var(--ink);
   cursor: default;
 }
+.badge-pri {
+  font-family: var(--mono-label); font-size: 12px; font-weight: 700;
+  display: inline-block; padding: 3px 6px 1px;
+  border: 2px solid var(--ink); vertical-align: middle;
+  white-space: nowrap;
+}
+.badge-pri.badge-express  { background: var(--accent-3); }
+.badge-pri.badge-standard { background: var(--accent-2); }
+.badge-pri.badge-economy  { background: var(--panel); }
+.badge-pri.badge-depot    { background: var(--grid); color: #57534A; }
+
+.howbox { border: var(--border); background: var(--cream); }
+.howbox summary {
+  font-family: var(--px); font-size: 12px; letter-spacing: .3px;
+  cursor: pointer; padding: 10px 12px; text-transform: uppercase;
+  list-style: none;
+  display: flex; align-items: center; gap: 8px;
+}
+.howbox summary::-webkit-details-marker { display: none; }
+.howbox summary::after {
+  content: ""; width: 0; height: 0;
+  border-left: 7px solid var(--ink);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+.howbox[open] summary::after { transform: rotate(90deg); }
+.howbox summary:focus-visible { outline: 3px dashed var(--ink); outline-offset: -4px; }
+.howin { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.dsachips { display: flex; flex-wrap: wrap; gap: 8px; }
+.dchip {
+  font-family: var(--mono-label); font-size: 12px;
+  background: var(--accent-3); border: 2px solid var(--ink);
+  padding: 6px 8px; cursor: pointer; color: var(--ink);
+}
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+  font-family: var(--mono-label); font-size: 12px; letter-spacing: .2px;
+  border-top: 2px dashed var(--ink); padding-top: 8px; margin-top: 8px;
+}
+.lg { display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; }
+.sw { width: 14px; height: 14px; border: 2px solid var(--ink); display: inline-block; }
+.sw-depot { background: var(--ink); width: 18px; height: 18px; color: var(--cream);
+            display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; }
+.sw-loc { background: var(--panel); }
+.sw-sel { background: var(--accent-2); }
+.sw-route { border: none; height: 4px; width: 22px; background: repeating-linear-gradient(90deg, var(--accent) 0 5px, transparent 5px 8px); }
+.sw-badge { background: var(--accent-3); font-size: 10px; display: inline-grid; place-items: center; }
+
+.map-toolbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  border: 2px solid var(--ink); background: var(--cream); padding: 8px;
+}
+.sel-sm { min-height: 44px; padding: 6px 8px 4px; }
+.btn-sm { min-height: 44px; padding: 8px 12px; font-size: 12px; }
+.btn[aria-pressed="true"] { background: var(--accent-2); }
+
+.chk { font-family: var(--mono-label); font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.chk input {
+  appearance: none; -webkit-appearance: none;
+  width: 22px; height: 22px; border: 3px solid var(--ink);
+  background: var(--panel); cursor: pointer; padding: 0;
+}
+.chk input:checked { background: var(--accent-2); box-shadow: inset 0 0 0 2px var(--accent-2); }
+.chk input:focus-visible { outline: 3px dashed var(--ink); outline-offset: 2px; }
+
+.svgwrap {
+  position: relative; flex: 1 1 auto;
+  display: flex; align-items: center; justify-content: center;
+}
+#map {
+  width: 100%; height: auto; aspect-ratio: 10 / 7;
+  border: var(--border);
+  background: var(--cream); display: block;
+  cursor: grab;
+}
+#map.grabbing { cursor: grabbing; }
+#m-roads line { stroke: var(--ink); stroke-width: 2; }
+#m-route path { stroke: var(--accent); stroke-width: 5; fill: none;
+  stroke-dasharray: 7 5; animation: march .7s steps(3) infinite; }
+@keyframes march { to { stroke-dashoffset: -12; } }
+#m-route path.leg-hi { stroke: var(--accent-3); stroke-width: 7; }
+#m-route polyline.arrow { stroke: none; fill: var(--accent); }
+
+.loc-g .loc-rect {
+  fill: var(--panel); stroke: var(--ink); stroke-width: 3;
+  cursor: pointer;
+}
+.loc-g .loc-rect:hover, .loc-g .loc-rect.hov {
+  fill: var(--ink);
+}
