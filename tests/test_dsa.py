@@ -419,3 +419,117 @@ def make_grid_graph():
             if r < 3:
                 g.add_edge(u, u + 4, w(u, u + 4))
     return g
+
+class TestGraph(unittest.TestCase):
+    def test_bfs_dfs(self):
+        g = make_grid_graph()
+        order, levels = bfs_order(g, 0)
+        self.assertEqual(order[0], 0)
+        self.assertEqual(len(order), 16)
+        self.assertEqual(levels[0], 0)
+        self.assertEqual(max(levels), 6)
+        d = dfs_order(g, 0)
+        self.assertEqual(len(d), 16)
+        self.assertEqual(d[0], 0)
+        rec = dfs_order(g, 0, recursive=False)
+        self.assertEqual(rec, d)
+
+    def test_components(self):
+        g = Graph(6)
+        g.add_edge(0, 1, 1); g.add_edge(1, 2, 1)
+        g.add_edge(3, 4, 1)
+        comps, _ = connected_components(g)
+        self.assertEqual(len(comps), 3)
+        self.assertEqual(comps[0], [0, 1, 2])
+        self.assertEqual(comps[2], [5])
+
+    def test_dijkstra(self):
+        g = make_grid_graph()
+        dist, prev = dijkstra(g, 0)
+        self.assertEqual(dist[5], 2)
+        self.assertEqual(dist[15], 6)
+        path, cost, _ = shortest_path(g, 0, 15)
+        self.assertEqual(cost, 6)
+        self.assertEqual(path[0], 0)
+        self.assertEqual(path[-1], 15)
+        self.assertEqual(len(path), 7)
+
+    def test_prim_kruskal_same_cost(self):
+        g = make_grid_graph()
+        ep, tp = prim_mst(g)
+        ek, tk = kruskal_mst(g)
+        self.assertEqual(len(ep), 15)
+        self.assertEqual(len(ek), 15)
+        self.assertAlmostEqual(tp, tk)
+        self.assertAlmostEqual(tp, 15)
+
+    def test_all_pairs(self):
+        g = make_grid_graph()
+        dm, pm = dijkstra_all_pairs(g)
+        self.assertEqual(dm[4][5], 1)
+        self.assertEqual(dm[0][0], 0)
+
+class TestSparseMatrix(unittest.TestCase):
+    def test_linked_rows(self):
+        dense = [[0, 7, 0, 0], [0, 0, 0, 0], [0, 0, 0, 3], [1, 0, 9, 0]]
+        sm = SparseMatrix.from_dense(dense)
+        self.assertEqual(sm.nnz, 4)
+        self.assertEqual(sm.get(0, 1), 7)
+        self.assertEqual(sm.get(1, 3), None)
+        self.assertAlmostEqual(sm.density(), 4 / 16)
+        j = sm.as_rows_json()
+        d = dict(j)
+        self.assertEqual([(c, v) for c, v in d[3]], [(0, 1), (2, 9)])
+
+class TestOptimizer(unittest.TestCase):
+    def make_dm(self):
+        """4 cities on a line:  0 --1.0-- 1 --2.0-- 2 --3.0-- 3"""
+        INF = 9999.0
+        dm = [[INF] * 4 for _ in range(4)]
+        for i in range(4):
+            dm[i][i] = 0.0
+        dm[0][1] = dm[1][0] = 1.0
+        dm[1][2] = dm[2][1] = 2.0
+        dm[2][3] = dm[3][2] = 3.0
+
+        dm[0][2] = dm[2][0] = 2.5
+        dm[0][3] = dm[3][0] = 3.5
+        dm[1][3] = dm[3][1] = 4.0
+        return dm
+
+    def test_exact_matches_brute(self):
+        from dsa.sorting import _is_sorted
+        dm = self.make_dm()
+        ro = RouteOptimizer(dm)
+        order, cost, steps = ro.optimize_exact([1, 2, 3], depot=0)
+
+        brute = {
+            (dm[0][a] + dm[a][b] + dm[b][c] + dm[c][0], (a, b, c))
+            for a, b, c in [(1, 2, 3), (1, 3, 2), (2, 1, 3),
+                            (2, 3, 1), (3, 1, 2), (3, 2, 1)]
+        }
+        best = min(brute)
+        self.assertAlmostEqual(cost, best[0])
+        self.assertEqual(cost, 9.5)
+
+    def test_exact_refuses_big(self):
+        ro = RouteOptimizer(self.make_dm())
+        with self.assertRaises(ValueError):
+            ro.optimize_exact(list(range(10)), 0)
+
+    def test_heuristic_reasonable(self):
+        dm = self.make_dm()
+        ro = RouteOptimizer(dm)
+        order, cost, _ = ro.optimize_heuristic([1, 2, 3], 0)
+        self.assertAlmostEqual(ro.tour_cost(order, 0), cost)
+        self.assertLessEqual(cost, 1.2 * 9.5)
+
+    def test_dispatcher_modes(self):
+        ro = RouteOptimizer(self.make_dm())
+        res = ro.optimize([1, 2], 0, mode="auto")
+        self.assertEqual(res["mode"], "exact")
+        res2 = ro.optimize([1, 2, 3], 0, mode="heuristic")
+        self.assertEqual(res2["algorithm"], "Nearest neighbour + 2-opt")
+
+if __name__ == "__main__":
+    unittest.main()
