@@ -460,3 +460,97 @@ body {
   width: 26px; height: 26px; display: inline-grid; place-items: center;
   border: 2px solid var(--ink); vertical-align: middle;
 }
+.badge-express  { background: var(--accent-3); }
+.badge-standard { background: var(--accent-2); }
+.badge-economy  { background: var(--panel); }
+
+.tbl {
+  width: 100%; border-collapse: collapse;
+  font-size: 16px;
+}
+
+#orders-tbl, #dsamap-tbl { min-width: 640px; }
+.tbl th, .tbl td { border: 2px solid var(--ink); padding: 6px 10px 4px; text-align: left; }
+.tbl thead th {
+  font-family: var(--px); font-size: 12px; letter-spacing: .5px;
+  background: var(--ink); color: var(--cream); text-transform: uppercase;
+}
+
+.route-tbl thead th, .cmp-tbl thead th {
+  font-family: var(--mono-label); font-size: 12px; font-weight: 700;
+  letter-spacing: .2px; background: var(--ink); color: var(--cream);
+}
+.tbl tbody tr:nth-child(odd) { background: var(--cream); }
+.tbl tbody tr:nth-child(even) { background: var(--panel); }
+
+.datalist { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 16px; }
+.datalist li { border: 2px solid var(--ink); background: var(--cream); padding: 4px 8px 2px; }
+.total { font-size: 20px; border: 2px solid var(--ink); padding: 4px 8px 2px; background: var(--accent-3); }
+.duel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .duel { grid-template-columns: 1fr; } }
+
+.travlist { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+.travlist li {
+  font-family: var(--px); font-size: 8px;
+  border: var(--border); box-shadow: var(--shadow-press);
+  padding: 8px 8px 6px; background: var(--cream);
+}
+.travlist li.lvl0 { background: var(--accent); }
+.travlist li.lvl1 { background: var(--accent-3); }
+.travlist em { font-style: normal; opacity: .6; font-size: 7px; }
+
+.heaplist, .ringlist { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 16px; }
+.heaplist li, .ringlist li {
+  display: flex; gap: 10px; align-items: center;
+  border: 2px solid var(--ink); padding: 6px 10px 4px; background: var(--cream);
+}
+.heaplist li:first-child { background: var(--accent-3); }
+.heaplist .key { font-family: var(--px); font-size: 8px; }
+
+.travlist { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+.travlist li {
+  font-family: var(--mono-label); font-size: 12px;
+  border: var(--border); box-shadow: var(--shadow-press);
+  padding: 8px 8px 6px; background: var(--cream);
+}
+.travlist li.lvl0 { background: var(--accent-3); }
+.travlist li.lvl1 { background: var(--accent-2); }
+.travlist em { font-style: normal; opacity: .6; font-size: 11px; }
+
+.buckets { display: grid; grid-template-columns: repeat(11, 1fr); gap: 6px; }
+@media (max-width: 700px) { .buckets { grid-template-columns: repeat(4, 1fr); } }
+.bucket {
+  border: var(--border); background: var(--cream); min-height: 70px;
+  padding: 4px; display: flex; flex-direction: column; gap: 4px;
+}
+.bucket .idx {
+  font-family: var(--px); font-size: 8px; text-align: center;
+  border-bottom: 2px solid var(--ink); padding-bottom: 3px;
+}
+.bucket .item {
+  font-size: 15px; border: 2px solid var(--ink);
+  background: var(--panel); padding: 2px 4px; text-align: center;
+}
+.bucket .item.collision { background: var(--danger); color: var(--cream); }
+.hashmeta { font-size: 17px; }
+
+#bench-chart { width: 100%; height: auto; max-height: 260px; }
+#bench-chart rect.bar { stroke: var(--ink); stroke-width: 1.6; }
+#bench-chart text { font-family: var(--px); font-size: 7px; fill: var(--ink); }
+
+.ext-chunk {
+  display: inline-block; border: 2px solid var(--ink); background: var(--cream);
+  padding: 4px 6px; margin: 2px 4px 2px 0; font-size: 15px;
+}
+.ext-step { margin: 6px 0; }
+.ext-arrow { font-family: var(--px); font-size: 9px; margin: 2px 0; }
+
+.sparseview { font-size: 15px; max-height: 180px; overflow-y: auto; }
+.sparse-row { white-space: nowrap; }
+
+.empty-state {
+  border: 3px dashed var(--ink); padding: 14px 10px;
+  font-family: var(--px); font-size: 9px; line-height: 1.9;
+  color: #555; background: var(--cream);
+  text-align: center;
+}
