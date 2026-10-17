@@ -168,3 +168,42 @@ class TestRouteAPI(unittest.TestCase):
     def test_nine_stops_exact(self):
         res = self.solve(list(range(1, 10)), engine="exact").get_json()
         self.assertIn("BACKTRACKING", res["engine_label"])
+
+    def test_ten_stops_exact_falls_back(self):
+        res = self.solve(list(range(1, 11)), engine="exact").get_json()
+        self.assertTrue(res["fallback_note"])
+        self.assertNotIn("BACKTRACKING", res["engine_label"])
+
+    def test_zero_stops_rejected(self):
+        self.assertEqual(self.solve([]).status_code, 400)
+
+    def test_duplicate_stops_rejected(self):
+        self.assertEqual(self.solve([5, 5, 9]).status_code, 400)
+
+    def test_compare_has_four_rows_and_best(self):
+        res = self.c.post("/api/optimize/compare",
+                          json={"stops": [1, 5, 9], "depot": 0}).get_json()
+        self.assertEqual(len(res["rows"]), 4)
+        best_rows = [r for r in res["rows"] if r["best"]]
+        self.assertEqual(len(best_rows), 1)
+        kms = [r["km"] for r in res["rows"] if r["km"] is not None]
+        self.assertEqual(best_rows[0]["km"], min(kms))
+
+    def test_compare_exact_skipped_over_nine(self):
+        res = self.c.post("/api/optimize/compare",
+                          json={"stops": list(range(1, 11)), "depot": 0}).get_json()
+        exact = [r for r in res["rows"] if r["engine"].startswith("EXACT")][0]
+        self.assertIsNone(exact["km"])
+        self.assertIn("SKIPPED", exact["note"])
+
+    def test_priority_first_puts_express_first(self):
+
+        res = self.solve([5, 11, 2], priority_first=True).get_json()
+        order = [l["to"] for l in res["legs"] if l["to"] != 0]
+        self.assertEqual(sorted(order[:2]), [2, 5], order)
+
+    def test_driver_assign_rotates_queue(self):
+        before = self.c.get("/api/state").get_json()["drivers"]
+        res = self.c.post("/api/drivers/assign", json={}).get_json()
+        self.assertEqual(res["assigned"], before[0])
+        self.assertEqual(res["queue"], before[1:] + before[:1])
