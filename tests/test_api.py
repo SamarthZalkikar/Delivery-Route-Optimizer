@@ -207,3 +207,51 @@ class TestRouteAPI(unittest.TestCase):
         res = self.c.post("/api/drivers/assign", json={}).get_json()
         self.assertEqual(res["assigned"], before[0])
         self.assertEqual(res["queue"], before[1:] + before[:1])
+
+class TestLabelPlacement(unittest.TestCase):
+    """Runs the JS algorithm's Python mirror on the seed map."""
+
+    def setUp(self):
+        self.locs = _loc_dicts()
+        self.roads = A.SEED_ROADS
+        self.stops = [1, 2, 3, 4, 5, 7, 8, 13]
+
+    def placed(self):
+        return js_place_labels(self.locs, self.roads, self.stops)
+
+    def test_no_label_label_overlap(self):
+        placed = self.placed()
+        for i in range(len(placed)):
+            for j in range(i + 1, len(placed)):
+                self.assertFalse(js_rect_hit(placed[i][1], placed[j][1]),
+                                 "labels %s and %s overlap" %
+                                 (placed[i][0], placed[j][0]))
+
+    def test_no_label_node_overlap(self):
+        placed = self.placed()
+        fit = js_fit(self.locs)
+        for lid, rect, _ in placed:
+            for loc in self.locs:
+                cx, cy = js_px(loc, fit)
+                half = 14 if loc["id"] == 0 else 9
+                nr = [cx - half - 1, cy - half - 1,
+                      cx + half + 1, cy + half + 1]
+                self.assertFalse(js_rect_hit(rect, nr),
+                                 "label of %s hits node %s" %
+                                 (lid, loc["id"]))
+
+    def test_labels_shortened_when_needed(self):
+        placed = self.placed()
+        by_id = {l["id"]: l["name"].upper() for l in self.locs}
+        codes = [t for _, _, t in placed]
+
+        for lid, _, text in placed:
+            self.assertTrue(text)
+            full = by_id[lid]
+            self.assertTrue(text == full or text.startswith(full[:2])
+                            or text in ("GM", "UG", "2+ letters"),
+                            "unexpected text %r for id %s" % (text, lid))
+        return codes
+
+if __name__ == "__main__":
+    unittest.main()
