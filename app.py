@@ -24,3 +24,28 @@ from dsa.dsu import DSU
 from dsa.sparse import SparseMatrix
 from dsa.sorting import (benchmark_all, external_sort, merge_sort_orders,
                          linear_search, binary_search, merge_sort)
+from dsa.optimizer import RouteOptimizer
+
+app = Flask(__name__)
+
+import config
+from dsa.geo import (haversine, latlng_to_xy, xy_to_latlng,
+                     valid_latlng, near_center)
+
+SEED_LOCATIONS = [
+
+    ["Central Depot", 50, 50],
+    ["Gateway Mall", 20, 30],
+    ["North Market", 65, 15],
+    ["Riverside Park", 85, 30],
+    ["Old Town Hall", 15, 65],
+    ["Tech Park West", 75, 70],
+    ["South Junction", 40, 85],
+    ["University Gate", 90, 50],
+    ["Harbour Docks", 70, 90],
+    ["Station Square", 50, 30],
+    ["Clifftop Retreat", 10, 20],
+    ["Stadium Zone", 60, 60],
+    ["Crystal Plaza", 35, 70],
+    ["Airport City", 95, 85],
+]
