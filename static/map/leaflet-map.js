@@ -299,3 +299,132 @@
       });
       if (weightLabelsOn) applyWeightLabels();
     }
+
+    function applyWeightLabels() {
+      Object.keys(lineByEdge).forEach(function (key) {
+        var line = lineByEdge[key];
+        if (weightLabelsOn) {
+          line.bindTooltip(line._w + " km", {
+            permanent: true, direction: "right",
+            className: "lk-perm lk-roadw", offset: L.point(6, 0)
+          });
+        } else {
+          line.unbindTooltip();
+          line.bindTooltip(line._htext, { sticky: true });
+        }
+      });
+    }
+
+    function setWeightLabels(on) {
+      weightLabelsOn = !!on;
+      applyWeightLabels();
+    }
+
+    function setLabelMode(mode) {
+      labelMode = (mode === "route" || mode === "off") ? mode : "all";
+      refreshLabels();
+    }
+
+    function setRoute(hops, selIds) {
+      selLookup = {};
+      (selIds || []).forEach(function (id) { selLookup[id] = true; });
+      routeLayer.clearLayers();
+      legLines = [];
+      routeLegsLatLng = [];
+      if (hops && hops.length) {
+        hops.forEach(function (chain, idx) {
+          if (chain.length < 2) return;
+          var latlngs = chain.map(function (nid) {
+            return [byId[nid].lat, byId[nid].lng];
+          });
+          routeLegsLatLng.push(latlngs);
+          L.polyline(latlngs, { color: "#1A1A1A", weight: 8,
+                                lineCap: "square" }).addTo(routeLayer);
+          var orange = L.polyline(latlngs, { color: "#FF5A36", weight: 5,
+                                             lineCap: "round" });
+          orange.addTo(routeLayer);
+          legLines.push({ idx: idx, poly: orange });
+        });
+      }
+      syncOverlays();
+      refreshLabels();
+    }
+
+    var truckMarker = null;
+    var truckLL = null;
+    var followOn = false;
+    function playRoute(hops) {
+      stopTrack();
+      var flat = [];
+      (hops || []).forEach(function (chain, ci) {
+        chain.forEach(function (nid, k) {
+          if (!flat.length || flat[flat.length - 1].nid !== nid) {
+            flat.push({ nid: nid, leg: ci });
+          }
+        });
+      });
+      var ll = flat.map(function (s) { return byId[s.nid]; })
+                   .map(function (l) { return [l.lat, l.lng]; });
+      if (!ll.length) return;
+      truckMarker = L.marker(ll[0], {
+        icon: L.divIcon({
+          className: "lk-wrap",
+          html: '<div class="lk-truck"><i class="tb"></i><i class="tc"></i></div>',
+          iconSize: [18, 12], iconAnchor: [9, 6]
+        }),
+        interactive: false, keyboard: false, zIndexOffset: 900
+      }).addTo(truckLayer);
+      truckLL = ll[0];
+      if (hooks.reducedMotion) {
+        truckMarker.setLatLng(ll[ll.length - 1]);
+        setTimeout(function () { hideTruck(); }, 900);
+        return;
+      }
+      var i = 0;
+      function step() {
+        if (!truckMarker) return;
+        if (i >= ll.length) {
+          setTimeout(hideTruck, 900);
+          return;
+        }
+        var from = ll[i > 0 ? i - 1 : 0];
+        var to = ll[i];
+
+        var s = 0;
+        function tick() {
+          if (!truckMarker || s > 4) return;
+          var t = s / 4;
+          var p = [from[0] + (to[0] - from[0]) * t,
+                   from[1] + (to[1] - from[1]) * t];
+          truckLL = p;
+          truckMarker.setLatLng(p);
+          if (followOn) map.panTo(p, { animate: false });
+          s += 1;
+          setTimeout(tick, 190);
+        }
+        tick();
+        i += 1;
+        setTimeout(step, 950);
+      }
+      step();
+    }
+    function stopTrack() {
+      if (truckMarker) { truckLayer.removeLayer(truckMarker); truckMarker = null; }
+    }
+    function hideTruck() { stopTrack(); }
+    function setFollow(on) { followOn = on;   }
+
+    function setEdgeStyles(styles) {
+      Object.keys(lineByEdge).forEach(function (key) {
+        var s = styles[key];
+        if (s) {
+          lineByEdge[key].setStyle({ weight: s.width, color: s.color, opacity: 1 });
+          lineByEdge[key].bringToFront();
+        }
+      });
+    }
+
+    function clearEdgeStyles() {
+      Object.keys(lineByEdge).forEach(function (key) {
+        lineByEdge[key].setStyle({ weight: 2, color: ROAD_COLOR, opacity: 1 });
+      });
