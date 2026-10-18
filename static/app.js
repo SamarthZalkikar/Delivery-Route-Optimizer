@@ -1583,3 +1583,132 @@ window.__tabConsoleErrors = [];
 window.addEventListener("error", function (e) {
   try { window.__tabConsoleErrors.push(String(e.message)); } catch (err) {   }
 });
+(function () {
+  var orig = console.error.bind(console);
+  console.error = function () {
+    try {
+      window.__tabConsoleErrors.push("console.error: " +
+        Array.prototype.join.call(arguments, " "));
+      if (window.__tabConsoleErrors.length > 50) window.__tabConsoleErrors.shift();
+    } catch (e) {   }
+    orig.apply(null, arguments);
+  };
+})();
+
+window.__checkTabs = function () {
+  var keys = Object.keys(TABS);
+  var idx = 0;
+  var prevTab = ACTIVE_TAB;
+  var results = [];
+  function step() {
+    if (idx >= keys.length) { setTab(prevTab); return Promise.resolve(results); }
+    var key = keys[idx];
+    window.__tabConsoleErrors.length = 0;
+    setTab(key);
+    return new Promise(function (r) { setTimeout(r, 80); }).then(function () {
+      var p = $("#" + TABS[key].panel);
+      var visible = !!p && !p.classList.contains("hidden") &&
+                    p.offsetParent !== null && p.offsetHeight > 0;
+      results.push({
+        tab: key,
+        panelVisible: visible,
+        childCount: p ? p.children.length : 0,
+        consoleErrors: window.__tabConsoleErrors.slice()
+      });
+      idx++;
+      return step();
+    });
+  }
+  return step();
+};
+
+function nodeTapped(id) {
+
+  toggleStop(id);
+}
+
+function slimeReduced() {
+  return window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function nodePopupHtml(id) {
+  var loc = locById(id);
+  if (!loc) return "";
+  var roads = S.roads.filter(function (r) { return r.u === id || r.v === id; })
+    .map(function (r) {
+      var other = r.u === id ? locById(r.v) : locById(r.u);
+      return other.name + " (" + r.w + " km)";
+    });
+  var waiting = (S.orders || []).filter(function (o) {
+    return o.location === id && o.status !== "DELIVERED";
+  }).map(function (o) { return o.id; });
+  var html = '<div class="lk-pop">';
+  html += '<strong>' + loc.name + '</strong><br>';
+  html += '#' + id + ' - lat ' + Number(loc.lat).toFixed(5) + ', lng ' +
+    Number(loc.lng).toFixed(5) + '<br>';
+  if (roads.length) html += 'ROADS: ' + roads.join(', ') + '<br>';
+  html += 'WAITING: ' + (waiting.length ? waiting.join(", ")
+    : "no undelivered orders") + '<br>';
+  if (id !== DEPOT_ID) {
+    html += '<div class="lk-popbtns">';
+    html += '<button class="btn btn-sm" data-act="stop">' +
+      (S.plan.stops.indexOf(id) >= 0 ? "REMOVE STOP" : "ADD AS STOP") +
+      '</button>';
+    html += '<button class="btn btn-sm" data-act="depot">SET AS DEPOT</button>';
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function emptyMapClick(latlng) {
+  if (!MV || MV.mode !== "map" || !MV.leaf) return;
+  var html = '<div class="lk-pop">'
+    + '<strong>ADD LOCATION HERE?</strong><br>'
+    + 'LAT ' + latlng.lat.toFixed(5) + ' / LNG ' + latlng.lng.toFixed(5)
+    + '<div class="lk-popinput">'
+    + '<input id="pop-loc-name" class="in in-sm" maxlength="40" '
+    + 'placeholder="NAME..." aria-label="New location name">'
+    + '<button class="btn btn-sm" id="pop-loc-add">ADD</button>'
+    + '</div></div>';
+  MV.leaf._openPopup(latlng, html);
+}
+
+function addLocationFromMap(latlng, name) {
+  api("/api/locations", {
+    method: "POST",
+    body: { name: name, lat: Number(latlng.lat.toFixed(6)),
+            lng: Number(latlng.lng.toFixed(6)) }
+  }).then(function (res) {
+    toast("LOCATION ADDED", res.name.toUpperCase() +
+      " CONNECTED TO ITS 3 NEAREST ROADS.");
+    return refreshState();
+  }).catch(function (e) {
+    toast("ADD FAILED", String(e).toUpperCase(), true);
+  });
+}
+
+function setDepot(id) {
+  if (!locById(id)) return;
+  DEPOT_ID = id;
+  S.plan.result = null;
+  S.plan.stale = false;
+  S.legHi = -1;
+  renderPlan();
+  drawMap();
+  if (window.MV && MV.mode === "map") MV.dataChanged();
+  toast("DEPOT MOVED", "NOW ROUTING FROM " + locById(id).name.toUpperCase());
+}
+
+function hoverRowForNode(id) {
+  if (!S.plan.result || !S.plan.result.legs) return;
+  var idx = -1;
+  S.plan.result.legs.forEach(function (leg) {
+    if (leg.to === id) idx = leg.i;
+  });
+  if (idx < 0) return;
+  $$("#route-tbl tbody tr").forEach(function (row) {
+    row.classList.toggle("leghi",
+      parseInt(row.getAttribute("data-leg"), 10) === idx);
+  });
