@@ -67,3 +67,60 @@
         g.appendChild(t);
       });
   };
+
+  MV.renderSvgSlime = function () {
+    var g = document.getElementById("m-slime");
+    if (!g) return;
+    while (g.firstChild) g.removeChild(g.firstChild);
+    if (!MV.slimePath.on || !MV.slimePath.hops ||
+        MV.slimePath.hops.length < 2 || !window.px) return;
+    var pts = MV.slimePath.hops.map(function (id) { return window.px(id); });
+    var d = "M" + pts.map(function (p) { return p.x + "," + p.y; }).join(" L");
+    g.appendChild(window.svg("path", { d: d, "class": "slime-path" }));
+  };
+
+  MV.setEdgeStyles = function (styles) {
+    MV.edgeStyles = styles || {};
+    if (MV.mode === "map" && MV.leaf) MV.leaf.setEdgeStyles(MV.edgeStyles);
+    else MV.afterSchematicRedraw();
+  };
+
+  MV.clearEdgeStyles = function () {
+    MV.edgeStyles = {};
+    if (MV.mode === "map" && MV.leaf) MV.leaf.clearEdgeStyles();
+    else MV.afterSchematicRedraw();
+  };
+
+  MV.setSourceSink = function (src, sink) {
+    MV.srcSink = { src: src, sink: sink };
+    if (MV.mode === "map" && MV.leaf) MV.leaf.setSourceSink(src, sink);
+    else MV.afterSchematicRedraw();
+  };
+
+  MV.setSlimePath = function (hops, on) {
+    MV.slimePath = { hops: hops, on: on };
+    if (MV.mode === "map" && MV.leaf) MV.leaf.setSlimePath(hops, on);
+    else MV.renderSvgSlime();
+  };
+
+  MV.setBase = function (which) {
+    if (MV.mode === "map" && MV.leaf && MV.leaf.setBase) {
+      MV.leaf.setBase(which);
+      safeSet("dro-map-base", which);
+      syncBaseButtons(which);
+    }
+  };
+
+  function syncBaseButtons(which) {
+    var b = document.getElementById("btn-tiles-osm");
+    var c = document.getElementById("btn-tiles-carto");
+    if (b) b.classList.toggle("active", which === "osm");
+    if (c) c.classList.toggle("active", which === "carto");
+  }
+
+  MV.highlightLeg = function (idx) {
+    if (MV.mode === "map" && MV.leaf) MV.leaf.highlightLeg(idx);
+    else {
+      $$("#m-route path[data-leg]").forEach(function (p) {
+        p.classList.toggle("leg-hi", parseInt(p.getAttribute("data-leg"), 10) === idx);
+      });
