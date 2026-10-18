@@ -124,3 +124,46 @@
       $$("#m-route path[data-leg]").forEach(function (p) {
         p.classList.toggle("leg-hi", parseInt(p.getAttribute("data-leg"), 10) === idx);
       });
+    }
+  };
+
+  MV.playRoute = function (hops, reduced) {
+    if (MV.mode === "map" && MV.leaf) MV.leaf.playRoute(hops, reduced);
+    else if (window.playRouteSchematic) window.playRouteSchematic();
+  };
+
+  MV.hideTruck = function () {
+    if (MV.mode === "map" && MV.leaf) MV.leaf.hideTruck();
+  };
+
+  MV.setFollow = function (on) {
+    MV.follow = on;
+    if (MV.mode === "map" && MV.leaf) MV.leaf.setFollow(on);
+  };
+
+  MV.fit = function () {
+    if (MV.mode === "map" && MV.leaf) MV.leaf.fit();
+    else if (window.resetZoom) window.resetZoom();
+  };
+
+  MV.syncLeaf = function () {
+    if (!MV.leaf || !window.S) return;
+    MV.leaf.setNodes(S.locations);
+    MV.leaf.setRoads(S.roads);
+    MV.leaf.setLabelMode(MV.labelMode || "all");
+    if (MV.weightsOn) MV.leaf.setWeightLabels(true);
+    MV.leaf.setRoute(S.plan.result ? S.plan.result.geometry : null,
+                     S.plan.result ? S.plan.result.stops : S.plan.stops);
+    MV.leaf.setSourceSink(MV.srcSink.src, MV.srcSink.sink);
+    MV.leaf.setSlimePath(MV.slimePath.hops, MV.slimePath.on);
+    if (Object.keys(MV.edgeStyles).length) MV.leaf.setEdgeStyles(MV.edgeStyles);
+  };
+
+  MV.setWeightLabels = function (on) {
+    MV.weightsOn = !!on;
+    if (MV.mode === "map" && MV.leaf) MV.leaf.setWeightLabels(MV.weightsOn);
+  };
+  MV.setLabelMode = function (mode) {
+    MV.labelMode = mode;
+    if (MV.mode === "map" && MV.leaf) MV.leaf.setLabelMode(mode);
+  };
