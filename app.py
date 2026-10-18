@@ -49,3 +49,43 @@ SEED_LOCATIONS = [
     ["Crystal Plaza", 35, 70],
     ["Airport City", 95, 85],
 ]
+
+SEED_ROADS = [
+    [0, 9], [0, 11], [0, 12], [0, 2],
+    [1, 10], [1, 9], [1, 4],
+    [2, 9], [2, 3],
+    [3, 7],
+    [4, 12], [4, 6],
+    [5, 11], [5, 7], [5, 13],
+    [6, 8], [6, 12],
+    [7, 13],
+    [8, 13],
+    [11, 12],
+]
+
+SEED_ORDERS = [
+    ["Ishita Rao", 2, 1, 4.5],
+    ["Manav Patel", 3, 2, 12.0],
+    ["Sara Khan", 5, 1, 2.0],
+    ["Daniel Fernandes", 8, 3, 20.0],
+    ["Priya Nair", 11, 2, 6.5],
+    ["Arjun Mehta", 9, 1, 3.2],
+    ["Fatima Sheikh", 4, 3, 15.0],
+    ["Rahul Bose", 7, 2, 8.0],
+    ["Meera Iyer", 10, 3, 11.0],
+    ["John Cardoza", 13, 1, 5.0],
+]
+
+class Store:
+    """Application state container.
+
+    Seeded once on import; RESTless endpoints mutate it. Every structure from
+    the syllabus is actively used here (see README matrix)."""
+
+    def __init__(self):
+        self.undo = DynStack()
+        self.shape_cache = HashTableChaining()
+        self._last_shape_ts = 0.0
+        self._build_graph()
+        self._seed_orders()
+        self._seed_labs()
