@@ -89,3 +89,43 @@ class Store:
         self._build_graph()
         self._seed_orders()
         self._seed_labs()
+
+    def _xy_latlng(self, x, y):
+        """Schematic grid (x,y) -> (lat, lng) using config scales."""
+        return xy_to_latlng(x, y, config.CITY_CENTER,
+                            config.DEG_LAT_PER_UNIT, config.DEG_LNG_PER_UNIT)
+
+    def _road_weight(self, lat1, lng1, lat2, lng2):
+        """Straight-line haversine x ROAD_FACTOR, rounded to 0.1 km."""
+        return round(haversine(lat1, lng1, lat2, lng2) * config.ROAD_FACTOR, 1)
+
+    def _build_graph(self):
+        self.locations = []
+        for lid, (name, x, y) in enumerate(SEED_LOCATIONS):
+            lat, lng = self._xy_latlng(x, y)
+            loc = {"id": lid, "name": name, "x": x, "y": y,
+                   "lat": round(lat, 5), "lng": round(lng, 5)}
+            self.locations.append(loc)
+        self.g = Graph(len(self.locations))
+        self.roads = []
+        for u, v in SEED_ROADS:
+            fu = self.locations[u]
+            fv = self.locations[v]
+            w = self._road_weight(fu["lat"], fu["lng"], fv["lat"], fv["lng"])
+            self.g.add_edge(u, v, w)
+            self.roads.append({"u": u, "v": v, "w": w})
+        self._rebuild_matrices()
+
+    def _rebuild_matrices(self):
+        self.dist, self.prevmap = dijkstra_all_pairs(self.g)
+        self.optimizer = RouteOptimizer(self.dist)
+        from dsa.physarum import PhysarumNetwork
+        self.pnet = PhysarumNetwork(self.g.n, self.g.edges)
+        self.leg_cache = HashTableChaining(size=97)
+
+        road_matrix = [[0.0] * self.g.n for _ in range(self.g.n)]
+        for u, v, w in self.g.edges:
+            road_matrix[u][v] = w
+        self.sparse = SparseMatrix.from_dense(road_matrix)
+        comps, _labels = connected_components(self.g)
+        self.components = comps
