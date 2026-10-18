@@ -181,3 +181,121 @@
         }
         pts[j + 1] = cur;
       }
+      var dirs = ["right", "left", "top", "bottom"];
+      pts.forEach(function (c) {
+        var name = c.n.name.toUpperCase();
+        var w = name.length * 7.2 + 10, h = 16;
+        var best = null;
+
+        var dirsTry = dirs.slice();
+        dirsTry.reverse();
+        dirsTry.forEach(function (dir) {
+          if (best) return;
+          var x = c.p.x, y = c.p.y;
+          if (dir === "right") x += 12;
+          else if (dir === "left") x -= (w + 12);
+          else if (dir === "top") { x -= w / 2; y -= 26; }
+          else { x -= w / 2; y += 16; }
+          var rect = { l: x, t: y, r: x + w, b: y + h, n: c.n };
+
+          for (var k = 0; k < placed.length; k++) {
+            var o = placed[k];
+            if (rect.l < o.r && rect.r > o.l && rect.t < o.b && rect.b > o.t) {
+              return;
+            }
+          }
+          best = { dir: dir, rect: rect };
+        });
+        if (!best) return;
+        var m = nodeMarkers[c.n.id];
+        if (m && !permLabels[c.n.id]) {
+          m.bindTooltip(c.n.name, {
+            permanent: true, direction: best.dir, className: "lk-perm",
+            offset: L.point(0, 0)
+          });
+          permLabels[c.n.id] = true;
+        } else if (m) {
+
+        }
+        placed.push(best.rect);
+      });
+
+      Object.keys(permLabels).forEach(function (id) {
+        var still = placed.some(function (r) { return String(r.n.id) === id; });
+        if (!still && nodeMarkers[id]) {
+          nodeMarkers[id].unbindTooltip();
+          delete permLabels[id];
+        }
+      });
+    }
+    map.on("zoomend", refreshLabels);
+
+    function setNodes(locs) {
+      nodeLayer.clearLayers();
+      nodeMarkers = {};
+      permLabels = {};
+      byId = {};
+      locs.forEach(function (loc) {
+        byId[loc.id] = loc;
+      });
+      locs.forEach(function (loc) {
+        var isDepot = isDepotFn(loc.id);
+        var icon = isDepot
+          ? iconBox("lk-depot", 28, "H")
+          : iconBox("lk-loc" + (selLookup[loc.id] ? " lk-sel" : ""), 18);
+        var m = L.marker([loc.lat, loc.lng], {
+          icon: icon, keyboard: true, title: loc.name,
+          zIndexOffset: isDepot ? 600 : 400
+        });
+        m.on("click", function () { hooks.onNode(loc.id); });
+        m.on("mouseover", function () {
+          hoveredNodeId = loc.id;
+          refreshLabels();
+          if (hooks.onNodeHover) hooks.onNodeHover(loc.id);
+        });
+        m.on("mouseout", function () {
+          if (hoveredNodeId === loc.id) hoveredNodeId = null;
+          refreshLabels();
+          if (hooks.onNodeLeave) hooks.onNodeLeave(loc.id);
+        });
+        m.on("popupopen", function (e) {
+          e.popup.setContent(hooks.popupFor(loc.id));
+          wirePopupActs(e.popup._contentNode, loc.id);
+        });
+        m.bindPopup("", { autoPan: true, closeButton: true });
+        m.addTo(nodeLayer);
+        nodeMarkers[loc.id] = m;
+      });
+      refreshLabels();
+    }
+
+    function wirePopupActs(root, id) {
+      root.querySelectorAll("[data-act]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          map.closePopup();
+          if (b.getAttribute("data-act") === "stop") hooks.onNode(id);
+          else if (b.getAttribute("data-act") === "depot" && hooks.onSetDepot) {
+            hooks.onSetDepot(id);
+          }
+        });
+      });
+    }
+
+    function setRoads(roads) {
+      roadLayer.clearLayers();
+      slimeLayer.clearLayers();
+      lineByEdge = {};
+      roads.forEach(function (r) {
+        var a = byId[r.u], b = byId[r.v];
+        var line = L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
+          color: ROAD_COLOR, weight: 2, opacity: 1, className: "lk-road"
+        });
+        line._htext = a.name + " <-> " + b.name + " : " + r.w + " km";
+        line._w = r.w;
+        line.bindTooltip(line._htext, { sticky: true });
+        line.on("click", function () { hooks.onNode(r.u); });
+        line.addTo(roadLayer);
+        lineByEdge[edgeKey(r.u, r.v)] = line;
+      });
+      if (weightLabelsOn) applyWeightLabels();
+    }
