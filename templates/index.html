@@ -304,3 +304,46 @@
     <div class="tab-loading" data-loading hidden>LOADING...</div>
 
     <div class="panel col-7">
+      <div class="panel-title"><span>SORT BENCHMARK (COMPARISON COUNTERS)</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <div class="row wrap">
+          <label class="lbl" for="sb-n">N:</label>
+          <input class="in" id="sb-n" type="number" min="2" max="5000" value="400">
+          <label class="lbl" for="sb-r">RANGE:</label>
+          <input class="in" id="sb-r" type="number" min="5" max="20000" value="60">
+          <button class="btn btn-acc" id="btn-bench">RUN BENCH</button>
+        </div>
+        <div id="bench-out" class="empty-state">RUN BENCH TO RACE SHELL / QUICK / MERGE / HEAP / COUNTING</div>
+        <table class="tbl hidden" id="bench-tbl">
+          <thead><tr><th>ALGO</th><th>CMP</th><th>MOVES</th><th>MS</th><th>STABLE</th><th>WORST</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <svg id="bench-chart" viewBox="0 0 400 130" role="img" aria-label="Benchmark bar chart"></svg>
+      </div>
+    </div>
+
+    <div class="panel col-5">
+      <div class="panel-title"><span>EXTERNAL SORT SIMULATION</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <p class="data" id="ext-stat">--</p>
+        <div id="ext-out" class="x-scroll"></div>
+      </div>
+    </div>
+
+    <div class="panel col-6">
+      <div class="panel-title"><span>HASH LAB (BUCKETS + COLLISIONS)</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <div class="row wrap">
+          <label class="lbl" for="h-key">KEY:</label>
+          <input class="in" id="h-key" placeholder="ORD-1004" value="ORD-1004">
+          <label class="lbl" for="h-fn">HASHFN:</label>
+          <select class="sel" id="h-fn" aria-label="Hash function">
+            <option value="division">DIVISION</option>
+            <option value="mid-square">MID-SQUARE</option>
+            <option value="folding">FOLDING</option>
+          </select>
+          <button class="btn btn-acc" id="btn-hash">INSERT 8 KEYS</button>
+        </div>
+        <div id="hash-out" class="empty-state">BUCKETS (CHAINING) + OPEN ADDRESSING SIDE-BY-SIDE</div>
+      </div>
+    </div>
