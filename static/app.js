@@ -1303,3 +1303,150 @@ function runBench() {
     res.external.chunks.forEach(function (ch) {
       ln.appendChild(el("span", "ext-chunk", ch.join(" ")));
     });
+    out.appendChild(ln);
+    for (var p = 1; p <= res.external.passes; p++) {
+      out.appendChild(el("div", "ext-arrow", "> PASS " + p + ": K-WAY MERGE (MIN-HEAP, FAN-IN 10)"));
+      var mid = el("div", "ext-step");
+      mid.appendChild(el("span", "ext-chunk", "..."));
+      out.appendChild(mid);
+    }
+    out.appendChild(el("div", "ext-arrow", "> MERGED OUTPUT (SORTED, " + res.external.final.length + " KEYS):"));
+    var fin = el("div", "ext-step");
+    fin.appendChild(el("span", "ext-chunk", res.external.final.slice(0, 60).join(" ") + " ..."));
+    out.appendChild(fin);
+  }).catch(function (e) { toast("BENCH FAILED", String(e).toUpperCase(), true); });
+}
+
+function drawBenchChart(results) {
+  var ns = "http://www.w3.org/2000/svg";
+  var sv = $("#bench-chart");
+  while (sv.firstChild) sv.removeChild(sv.firstChild);
+  var W = 400, H = 130, pad = 26;
+  var maxC = 1;
+  results.forEach(function (r) { if (r.comparisons > maxC) maxC = r.comparisons; });
+  var bw = (W - pad * 2 - results.length * 10) / results.length;
+  var colors = ["#2EC4B6", "#FF5A36", "#FFD23F", "#E63946", "#1A1A1A"];
+  var baseline = svg("line", { x1: pad, x2: W - pad, y1: H - 24, y2: H - 24,
+                               stroke: "#1A1A1A", "stroke-width": 2 });
+  sv.appendChild(baseline);
+  results.forEach(function (r, i) {
+    var h = Math.max(4, (r.comparisons / maxC) * (H - 48));
+    var rect = svg("rect", {
+      x: pad + i * (bw + 10), y: H - 24 - h, width: bw, height: h,
+      fill: colors[i % colors.length], class: "bar"
+    });
+    sv.appendChild(rect);
+    var lab = svg("text", { x: pad + i * (bw + 10) + bw / 2, y: H - 10,
+                            "text-anchor": "middle" });
+    lab.textContent = r.algo.toUpperCase().slice(0, 5);
+    sv.appendChild(lab);
+    var val = svg("text", { x: pad + i * (bw + 10) + bw / 2, y: H - 28 - h,
+                            "text-anchor": "middle" });
+    val.textContent = String(r.comparisons);
+    sv.appendChild(val);
+  });
+}
+
+function runHash() {
+  var raw = $("#h-key").value.trim();
+  var fn = $("#h-fn").value;
+  api("/api/hash-demo", { method: "POST", body: { key: raw, function: fn } })
+  .then(function (res) {
+    var out = $("#hash-out");
+    out.className = "";
+    out.textContent = "";
+    out.appendChild(el("p", "hashmeta", "h(" + res.key + ") = BUCKET " + res.bucket +
+      "  LP: " + res.lookup_steps.chained + " / " + res.lookup_steps.open_linear));
+    var grid = el("div", "buckets");
+    res.chains.forEach(function (items, i) {
+      var b = el("div", "bucket");
+      b.appendChild(el("div", "idx", String(i)));
+      items.forEach(function (kv) {
+        var cls = "item" + (kv[0] !== res.key ? " collision" : "");
+        b.appendChild(el("div", cls, String(kv[0])));
+      });
+      if (!items.length) b.appendChild(el("div", "item", "-"));
+      grid.appendChild(b);
+    });
+    out.appendChild(el("p", "hashmeta", "CHAINING (" + res.chain_collisions + " COLLISIONS)"));
+    out.appendChild(grid);
+    var grid2 = el("div", "buckets");
+    res.open_linear.forEach(function (cell) {
+      var b = el("div", "bucket");
+      b.appendChild(el("div", "idx", String(cell[0])));
+      if (cell[1] === null) b.appendChild(el("div", "item", "0"));
+      else if (cell[1] === "_TOMB_") b.appendChild(el("div", "item collision", "T"));
+      else b.appendChild(el("div", "item", String(cell[1])));
+      grid2.appendChild(b);
+    });
+    out.appendChild(el("p", "hashmeta", "OPEN ADDRESSING (LINEAR PROBE). T = TOMBSTONE"));
+    out.appendChild(grid2);
+  }).catch(function (e) { toast("HASH DEMO FAILED", String(e).toUpperCase(), true); });
+}
+
+function runSearchDemo() {
+  api("/api/search-demo", { method: "POST",
+    body: { n: parseInt($("#sd-n").value, 10) } })
+  .then(function (res) {
+    var box = $("#sd-out");
+    box.className = "empty-state";
+    box.textContent = "ARRAY OF " + res.n + " SORTED IDS, TARGET " + res.target +
+      " => LINEAR: " + res.linear.steps + " STEPS | BINARY: " + res.binary.steps + " STEPS";
+  }).catch(function (e) { toast("DEMO FAILED", String(e).toUpperCase(), true); });
+}
+
+function runPoly() {
+  api("/api/cost-model", { method: "POST", body: {
+    a: parseFloat($("#p-a").value), b: parseFloat($("#p-b").value),
+    c: parseFloat($("#p-c").value), d: parseFloat($("#p-d").value) } })
+  .then(function (res) {
+    var box = $("#poly-out");
+    box.className = "empty-state";
+    box.textContent = res.display.replace("x^2", "d^2").replace("x", "d") +
+      " = Rs " + res.cost + " (d=" + res.distance + ")";
+  }).catch(function (e) { toast("POLY FAILED", String(e).toUpperCase(), true); });
+}
+
+function renderDsaMap() {
+  api("/api/dsa-map").then(function (res) {
+    var tb = $("#dsamap-tbl tbody");
+    tb.textContent = "";
+    res.entries.forEach(function (row) {
+      var tr = el("tr");
+      tr.appendChild(el("td", null, row[0]));
+      tr.appendChild(el("td", null, row[1]));
+      tr.appendChild(el("td", null, row[2]));
+      tb.appendChild(tr);
+    });
+  }).catch(function (e) { toast("DSA MAP FAILED", String(e).toUpperCase(), true); });
+}
+
+function refreshState() {
+  return api("/api/state").then(function (state) {
+    S.locations = state.locations;
+    S.roads = state.roads;
+    S.drivers = state.drivers;
+    S.orders = state.orders;
+    renderLocationSelects();
+    drawMap();
+    renderPlan();
+    renderQueue(state);
+    renderOrdersTable(state);
+    renderRing(state);
+    renderDispatchLog(state);
+    if (window.MV) MV.dataChanged();
+
+    if (window.SLIME2) {
+      window.SLIME2.setData(S.locations, S.roads);
+      window.SLIME2.fit();
+    }
+  });
+}
+
+function boot() {
+  loadPrefs();
+  $$(".tab").forEach(function (t) {
+    t.addEventListener("click", function () {
+      setTab(t.id.replace("tabbtn-", ""));
+      savePrefs();
+    });
