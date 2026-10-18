@@ -347,3 +347,32 @@
         <div id="hash-out" class="empty-state">BUCKETS (CHAINING) + OPEN ADDRESSING SIDE-BY-SIDE</div>
       </div>
     </div>
+
+    <div class="panel col-3">
+      <div class="panel-title"><span>LINEAR vs BINARY</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <div class="row wrap">
+          <label class="lbl" for="sd-n">N:</label>
+          <input class="in" id="sd-n" type="number" min="1" max="2000" value="100">
+          <button class="btn" id="btn-search-demo">RACE</button>
+        </div>
+        <div id="sd-out" class="empty-state">STEP COUNTS LIVE HERE</div>
+      </div>
+    </div>
+
+    <div class="panel col-3">
+      <div class="panel-title"><span>POLYNOMIAL COST</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <p class="data">f(d) = a&middot;d&sup2; + b&middot;d + c</p>
+        <div class="row wrap">
+          <input class="in tinny" id="p-a" type="number" step="0.1" value="0.8" aria-label="coefficient a">
+          <input class="in tinny" id="p-b" type="number" step="0.1" value="1.2" aria-label="coefficient b">
+          <input class="in tinny" id="p-c" type="number" step="1" value="35" aria-label="coefficient c">
+          <input class="in tinny" id="p-d" type="number" step="1" value="164" aria-label="distance d">
+          <button class="btn" id="btn-poly">EVAL</button>
+        </div>
+        <div id="poly-out" class="empty-state">LINKED-LIST POLY EVAL: --</div>
+      </div>
+    </div>
+
+  </section>
