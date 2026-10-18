@@ -283,3 +283,24 @@
         <div class="sparseview x-scroll" id="sparse-view"></div>
       </div>
     </div>
+
+    <div class="panel col-12">
+      <div class="panel-title"><span>TRAVERSAL VISUALIZER -- BFS (ARRAYDEQUE) / DFS (DynStack)</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body">
+        <div class="row wrap">
+          <label class="lbl" for="tr-start">START:</label>
+          <select class="sel" id="tr-start" aria-label="Traversal start node"></select>
+          <button class="btn btn-acc" id="btn-bfs">RUN BFS</button>
+          <button class="btn" id="btn-dfs">RUN DFS</button>
+          <span class="data" id="tr-struct"></span>
+        </div>
+        <ol class="travlist" id="tr-out" aria-live="polite"></ol>
+      </div>
+    </div>
+
+  </section>
+
+  <section class="grid hidden" id="tab-lab" role="tabpanel" aria-labelledby="tabbtn-lab">
+    <div class="tab-loading" data-loading hidden>LOADING...</div>
+
+    <div class="panel col-7">
