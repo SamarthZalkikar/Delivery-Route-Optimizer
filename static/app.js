@@ -1450,3 +1450,136 @@ function boot() {
       setTab(t.id.replace("tabbtn-", ""));
       savePrefs();
     });
+  });
+
+  var lm = $("#labels-mode");
+  lm.value = S.labelsMode;
+  lm.addEventListener("change", function () {
+    S.labelsMode = lm.value;
+    drawMap();
+    if (window.MV) MV.setLabelMode(S.labelsMode);
+    savePrefs();
+  });
+
+  var bw2 = $("#btn-weights");
+  bw2.setAttribute("aria-pressed", S.showDist ? "true" : "false");
+  bw2.textContent = (S.showDist ? "HIDE DISTANCES" : "SHOW DISTANCES");
+  bw2.addEventListener("click", function () {
+    S.showDist = !S.showDist;
+    bw2.setAttribute("aria-pressed", S.showDist ? "true" : "false");
+    bw2.textContent = (S.showDist ? "HIDE DISTANCES" : "SHOW DISTANCES");
+    drawMap();
+    if (window.MV) MV.setWeightLabels(S.showDist);
+    savePrefs();
+  });
+
+  var eng = $("#opt-engine");
+  if (S._pEngine && ["auto", "exact", "nn", "nn2opt"].indexOf(S._pEngine) >= 0) {
+    eng.value = S._pEngine;
+  }
+  if (typeof S._pPrio === "boolean") $("#prio-first").checked = S._pPrio;
+  eng.addEventListener("change", function () {
+    updateEngineWarn();
+    savePrefs();
+  });
+  $("#prio-first").addEventListener("change", savePrefs);
+
+  bindZoomPan();
+  bindAutocomplete();
+
+  $("#btn-optimize").addEventListener("click", runOptimize);
+  $("#btn-compare").addEventListener("click", runCompare);
+  $("#btn-clear-stops").addEventListener("click", function () {
+    S.plan.stops = [];
+    S.plan.result = null;
+    S.plan.stale = false;
+    S.legHi = -1;
+    drawMap();
+    $("#cmp-out").classList.add("hidden");
+    resetZoom();
+    renderPlan();
+    savePrefs();
+  });
+  $("#btn-copy").addEventListener("click", exportText);
+  $("#btn-download").addEventListener("click", exportJson);
+  $("#btn-play").addEventListener("click", playRoute);
+  $("#btn-assign").addEventListener("click", function () {
+    if (!S.drivers.length) {
+      toast("NO DRIVERS", "ROUND-ROBIN QUEUE IS EMPTY.", true);
+      return;
+    }
+    api("/api/drivers/assign", { method: "POST" }).then(function (res) {
+      S.drivers = res.queue;
+      $("#drv-name").textContent = res.assigned.replace(/^Driver-/, "").toUpperCase();
+      renderRing({ drivers: res.queue });
+      toast("DRIVER ON", res.assigned.replace(/^Driver-/, "").toUpperCase() +
+        " ROTATED TO THE FRONT.");
+    }).catch(function (e) { toast("ASSIGN FAILED", String(e).toUpperCase(), true); });
+  });
+
+  $("#btn-add-order").addEventListener("click", addOrder);
+  $("#btn-dispatch").addEventListener("click", dispatchNext);
+  $("#btn-undo").addEventListener("click", undoLast);
+  $("#btn-lookup").addEventListener("click", lookupOrder);
+  $("#btn-bfs").addEventListener("click", function () { runTraverse("bfs"); });
+  $("#btn-dfs").addEventListener("click", function () { runTraverse("dfs"); });
+  $("#btn-bench").addEventListener("click", runBench);
+  $("#btn-hash").addEventListener("click", runHash);
+  $("#btn-search-demo").addEventListener("click", runSearchDemo);
+  $("#btn-poly").addEventListener("click", runPoly);
+
+  if (window.MV) {
+    $("#btn-mode-map").addEventListener("click", function () {
+      MV.setMode("map");
+    });
+    $("#btn-mode-sch").addEventListener("click", function () {
+      MV.setMode("schematic");
+    });
+    $("#btn-tiles-osm").addEventListener("click", function () { MV.setBase("osm"); });
+    $("#btn-tiles-carto").addEventListener("click", function () { MV.setBase("carto"); });
+    $("#btn-mapfit").addEventListener("click", function () { MV.fit(); });
+    $("#btn-mapfollow").addEventListener("click", function () {
+      var on = this.getAttribute("aria-pressed") !== "true";
+      this.setAttribute("aria-pressed", String(on));
+      this.classList.toggle("active", on);
+      MV.setFollow(on);
+      toast("FOLLOW", on ? "CAMERA TRACKS THE TRUCK." : "CAMERA STAYS PUT.");
+    });
+    MV.appHooks = {
+      onNode: nodeTapped,
+      onSetDepot: setDepot,
+      onNodeHover: hoverRowForNode,
+      onNodeLeave: unhoverRow,
+      onEmptyClick: emptyMapClick,
+      onAddLocation: addLocationFromMap,
+      routeStops: function () {
+        return S.plan.result ? S.plan.result.stops : S.plan.stops;
+      },
+      popupFor: nodePopupHtml
+    };
+
+    var qview = new URLSearchParams(window.location.search).get("view");
+    if (qview === "schematic" || qview === "map") MV.setMode(qview);
+    else MV.setMode(MV.mode);
+  }
+
+  setLoading(true);
+  updateEngineWarn();
+  refreshState().finally(function () { setLoading(false); });
+  api("/api/network").then(function (net) { renderNetwork(net); });
+  renderDsaMap();
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { drawMap(); });
+  }
+
+  setTab(tabFromHash() || storedTab() || "dispatch");
+  window.addEventListener("hashchange", function () {
+    var t = tabFromHash();
+    if (t && t !== ACTIVE_TAB) setTab(t);
+  });
+}
+
+window.__tabConsoleErrors = [];
+window.addEventListener("error", function (e) {
+  try { window.__tabConsoleErrors.push(String(e.message)); } catch (err) {   }
+});
