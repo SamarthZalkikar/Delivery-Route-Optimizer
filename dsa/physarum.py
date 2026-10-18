@@ -21,3 +21,6 @@ O(E) matrix-vector products -- O(E) per CG step, no numpy.
 Complexity: one adaptation loop over E edges is O(E); each outer iteration
 costs O(cg_its * E + E), cg_its small for city graphs (typically < 40).
 """
+
+import math
+import time
