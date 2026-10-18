@@ -1712,3 +1712,118 @@ function hoverRowForNode(id) {
     row.classList.toggle("leghi",
       parseInt(row.getAttribute("data-leg"), 10) === idx);
   });
+}
+
+function unhoverRow() {
+  if (S.legHi >= 0) return;
+  $$("#route-tbl tbody tr").forEach(function (row) {
+    row.classList.remove("leghi");
+  });
+}
+
+window.SLIME2 = null;
+var SLIME_DEFAULTS = { mu: "1", dt: "0.1", i0: "1", exp: "1.5" };
+var SLIME_CENTER = [21.1458, 79.0882];
+
+function slimeEngine(name, a, b) {
+
+  if (window.SLIME2 && typeof window.SLIME2[name] === "function") {
+    window.SLIME2[name](a, b);
+    return true;
+  }
+  toast("SLIME RENDER", "SLIME MAP NOT MOUNTED - REOPEN THE SLIME LAB TAB.", true);
+  return false;
+}
+
+function slimeMode() { return S.lab ? S.lab.mode : "path"; }
+
+function slimeLocName(id) {
+  var l = locById(id);
+  return l ? l.name : "#" + id;
+}
+
+function slimeMount() {
+  var host = $("#slime-map-host");
+  if (!host) return;
+  if (!window.SLIME2) {
+    window.SLIME2 = window.DRO_createSlimeMap(host, {
+      center: SLIME_CENTER,
+      onNode: slimeMapNode,
+      onFallback: slimeFallbackNote
+    });
+  }
+  window.SLIME2.setMode(window.MV ? MV.mode : "map");
+  window.SLIME2.setData(S.locations, S.roads);
+  window.SLIME2.invalidate();
+  window.SLIME2.fit();
+  var note = $("#slime-map-note");
+  if (note) {
+    note.classList.toggle("hidden",
+      !(window.SLIME2.tilesBroken() && window.MV && MV.mode === "map"));
+  }
+  var d = slimeMode() === "growth" ? S.lab.gdata : S.lab.data;
+  if (d && d.frames.length) {
+    slimeShowFrame(Math.min(S.lab.frame, d.frames.length - 1));
+  }
+}
+
+function slimeFallbackNote() {
+  var note = $("#slime-map-note");
+  if (note) {
+    note.textContent =
+      "TILES UNAVAILABLE HERE - SLIME RENDER NEEDS THE SCHEMATIC MODE.";
+    note.classList.remove("hidden");
+  }
+}
+
+function slimeErrorIn(boxId, message, retryFn) {
+  var box = $(boxId);
+  if (!box) return;
+  box.classList.remove("slime-empty");
+  box.innerHTML = "";
+  var head = document.createElement("div");
+  head.className = "slime-error-head";
+  head.textContent = "! ERROR";
+  var msg = document.createElement("div");
+  msg.className = "slime-error-msg";
+  msg.textContent = String(message).toUpperCase();
+  var retry = document.createElement("button");
+  retry.className = "btn btn-sm";
+  retry.textContent = "RETRY";
+  retry.addEventListener("click", retryFn);
+  box.appendChild(head);
+  box.appendChild(msg);
+  box.appendChild(retry);
+}
+
+function slimeStatus() {
+  var el = $("#slime-status");
+  if (!el || !S.lab) return;
+  if (S.lab.src === null) el.textContent = "CLICK A NODE TO SET SOURCE";
+  else if (S.lab.sink === null) el.textContent =
+    "SRC SET: " + slimeLocName(S.lab.src) + " - CLICK ANOTHER NODE FOR SINK";
+  else el.textContent = "ENDPOINTS READY - PRESS RUN";
+  var c = $("#slime-src-chip"), k = $("#slime-snk-chip");
+  if (c) c.textContent = "SRC: " + (S.lab.src === null ? "-"
+    : slimeLocName(S.lab.src));
+  if (k) k.textContent = "SNK: " + (S.lab.sink === null ? "-"
+    : slimeLocName(S.lab.sink));
+}
+
+function slimeMapNode(id) {
+  if (!S.lab) return;
+  if (slimeMode() === "growth") {
+    var i = S.lab.gStops.indexOf(id);
+    if (i >= 0) S.lab.gStops.splice(i, 1);
+    else if (S.lab.gStops.length < 12) S.lab.gStops.push(id);
+    slimeUpdateGrowthUi();
+    return;
+  }
+  if (S.lab.src === null) { S.lab.src = id; }
+  else if (S.lab.sink === null && id !== S.lab.src) { S.lab.sink = id; }
+  else { S.lab.src = id; S.lab.sink = null; }
+  slimeEngine("setSourceSink", S.lab.src, S.lab.sink);
+  slimeStatus();
+  slimeUpdateRun();
+  toast("SLIME LAB", "NODE: " + slimeLocName(id).toUpperCase());
+}
