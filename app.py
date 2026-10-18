@@ -19,3 +19,8 @@ from dsa.hashing import hash_division, hash_mid_square, hash_folding, \
     HashTableChaining, HashTableOpen
 from dsa.graph import Graph, dijkstra_all_pairs, bfs_order, dfs_order, \
     connected_components, prim_mst, kruskal_mst, path_via_prev, shortest_path
+from dsa.physarum import PhysarumNetwork
+from dsa.dsu import DSU
+from dsa.sparse import SparseMatrix
+from dsa.sorting import (benchmark_all, external_sort, merge_sort_orders,
+                         linear_search, binary_search, merge_sort)
