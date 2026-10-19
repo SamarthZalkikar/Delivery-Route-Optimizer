@@ -24,3 +24,43 @@ costs O(cg_its * E + E), cg_its small for city graphs (typically < 40).
 
 import math
 import time
+
+def _dot(a, b):
+    s = 0.0
+    for i in range(len(a)):
+        s += a[i] * b[i]
+    return s
+
+def cg_solve(matvec, b, m, tol=1e-8, max_it=200, x0=None):
+    """Solve A x = b for SPD A via CG. A is given as a matvec function.
+
+    Returns (x, its). x0 enables warm starts between Physarum iterations
+    (pressures move slowly, so the same guess is nearly exact next round).
+    O(E) per iteration when matvec streams the adjacency lists once."""
+    x = [0.0] * m if x0 is None else list(x0)
+    r = list(b)
+    ax = matvec(x)
+    for i in range(m):
+        r[i] -= ax[i]
+    p = list(r)
+    rr = _dot(r, r)
+    bnorm = math.sqrt(_dot(b, b)) or 1.0
+    its = 0
+    for _ in range(max_it):
+        if math.sqrt(rr) <= tol * bnorm:
+            break
+        ap = matvec(p)
+        pap = _dot(p, ap)
+        if pap <= 1e-30:
+            break
+        alpha = rr / pap
+        for i in range(m):
+            x[i] += alpha * p[i]
+            r[i] -= alpha * ap[i]
+        rr_new = _dot(r, r)
+        beta = rr_new / rr
+        for i in range(m):
+            p[i] = r[i] + beta * p[i]
+        rr = rr_new
+        its += 1
+    return x, its
