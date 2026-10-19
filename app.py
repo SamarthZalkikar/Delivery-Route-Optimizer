@@ -387,3 +387,64 @@ def route_geometry(depot, stops):
     return hops
 
 @app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/api/state")
+def api_state():
+    s = STORE
+    return jsonify({
+        "locations": s.locations,
+        "roads": s.roads,
+        "orders": [order_public(o) for o in s.orders],
+        "drivers": s.drivers.snapshot(),
+        "pending_sorted": [o["id"] for o in s.pending_sorted()],
+        "deliveries": s.deliveries[-8:],
+        "count": {"locations": len(s.locations), "roads": len(s.roads),
+                  "orders": len(s.orders)},
+    })
+
+@app.route("/api/locations", methods=["POST"])
+def api_locations_add():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return json_error("body must be a JSON object")
+    name = data.get("name")
+    lat, lng = data.get("lat"), data.get("lng")
+    x, y = data.get("x"), data.get("y")
+    if not isinstance(name, str) or not name.strip():
+        return json_error("'name' must be a non-empty string")
+    has_geo = lat is not None or lng is not None
+    has_grid = x is not None or y is not None
+    if has_grid and (not isinstance(x, int) or not isinstance(y, int) or
+                     not (0 <= x <= 100) or not (0 <= y <= 100)):
+        return json_error("'x' and 'y' must be integers within the 0-100 grid")
+    if not has_geo and not has_grid:
+        return json_error("provide 'lat' and 'lng', or legacy 'x' and 'y'")
+    if has_grid and not has_geo:
+        lat, lng = STORE._xy_latlng(x, y)
+    lid, err = STORE.add_location(lat, lng, name.strip())
+    if err:
+        return json_error(err)
+    loc = STORE.locations[lid]
+    STORE.undo.push(["ADD_LOC", loc["x"], loc["y"]])
+    return jsonify({"ok": True, "id": lid, "name": loc["name"],
+                    "lat": loc["lat"], "lng": loc["lng"],
+                    "x": loc["x"], "y": loc["y"]}), 201
+
+ENGINE_LABELS = {
+    "exact": "EXACT (BACKTRACKING)",
+    "nn": "NEAREST NEIGHBOUR",
+    "nn2opt": "NEAREST NEIGHBOUR + 2-OPT",
+    "auto": "AUTO",
+}
+
+def stop_priority_map(stops):
+    """Location -> best pending order priority at it (Express=1 wins)."""
+    prios = {}
+    for order in STORE.orders:
+        if order["status"] == "PENDING" and order["location"] in stops:
+            cur = prios.get(order["location"])
+            if cur is None or order["priority"] < cur:
+                prios[order["location"]] = order["priority"]
+    return prios
