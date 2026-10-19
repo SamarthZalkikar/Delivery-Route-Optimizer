@@ -1827,3 +1827,137 @@ function slimeMapNode(id) {
   slimeUpdateRun();
   toast("SLIME LAB", "NODE: " + slimeLocName(id).toUpperCase());
 }
+
+function slimeSwap() {
+  if (!S.lab) return;
+  var t = S.lab.src;
+  S.lab.src = S.lab.sink;
+  S.lab.sink = t;
+  slimeEngine("setSourceSink", S.lab.src, S.lab.sink);
+  slimeStatus();
+  slimeUpdateRun();
+}
+
+function slimeClearAll() {
+  slimeStop();
+  S.lab.data = null;
+  S.lab.gdata = null;
+  S.lab.src = null;
+  S.lab.sink = null;
+  S.lab.frame = 0;
+  slimeEngine("setEdgeStyles", {});
+  slimeEngine("setSlimePath", null, false);
+  slimeEngine("setOverlay", null);
+  slimeStatus();
+  slimeUpdateRun();
+  slimeUpdatePlayback();
+  slimeEmptyResult("#slime-result", "RUN A SOLVE: CLICK SRC, THEN SNK, PRESS RUN");
+  slimeEmptyResult("#slime-result-g", "PRESS RUN GROWTH (NEEDS AT LEAST 2 STOPS)");
+  $("#slime-phase").textContent = "ALL ROADS OPEN";
+  $("#slime-iter").textContent = "ITER -";
+}
+
+function slimeParams() {
+  $("#slime-mu-val").textContent = $("#slime-mu").value;
+  $("#slime-dt-val").textContent = $("#slime-dt").value;
+  $("#slime-i0-val").textContent = $("#slime-i0").value;
+  $("#slime-exp-val").textContent = $("#slime-exp").value;
+  slimeFill($("#slime-mu"));
+  slimeFill($("#slime-dt"));
+  slimeFill($("#slime-i0"));
+  slimeFill($("#slime-exp"));
+}
+
+function slimeFill(el) {
+  if (!el) return;
+  var lo = parseFloat(el.min), hi = parseFloat(el.max);
+  if (!(hi > lo)) return;
+  var pct = (parseFloat(el.value) - lo) / (hi - lo) * 100;
+  el.style.setProperty("--fill", pct + "%");
+}
+
+function slimeResetDefaults() {
+  $("#slime-mu").value = SLIME_DEFAULTS.mu;
+  $("#slime-dt").value = SLIME_DEFAULTS.dt;
+  $("#slime-i0").value = SLIME_DEFAULTS.i0;
+  $("#slime-exp").value = SLIME_DEFAULTS.exp;
+  slimeParams();
+}
+
+function slimeUpdateRun() {
+  var btn = $("#btn-slime-run");
+  if (btn) btn.disabled = !(S.lab.src !== null && S.lab.sink !== null);
+}
+
+function slimeUpdateGrowthUi() {
+  var stops = slimeGrowthStops();
+  var info = $("#slime-g-stops");
+  if (info) {
+    var names = stops.slice(0, 8).map(function (id) {
+      return slimeLocName(id);
+    });
+    info.textContent = "STOPS: " + stops.length +
+      (names.length ? " - " + names.join(", ") : "");
+  }
+  var empty = $("#slime-g-empty");
+  if (empty) empty.classList.toggle("hidden", stops.length >= 2);
+  var btn = $("#btn-slime-growth-run");
+  if (btn) btn.disabled = stops.length < 2;
+}
+
+function slimeUpdatePlayback() {
+  var has = !!(S.lab.data || S.lab.gdata);
+  $("#btn-slime-play").disabled = !has;
+  $("#btn-slime-prev").disabled = !has || (S.lab.frame <= 0);
+  $("#btn-slime-next").disabled = !has;
+  $("#slime-step").disabled = !has;
+}
+
+function slimeEmptyResult(sel, text) {
+  var box = $(sel);
+  if (!box) return;
+  box.classList.add("slime-empty");
+  box.textContent = text;
+}
+
+function slimeGrowthStops() {
+  if (S.plan.stops && S.plan.stops.length >= 2) {
+    return S.plan.stops.slice(0, 8);
+  }
+  return S.lab.gStops.slice(0, 8);
+}
+
+function slimeRun() {
+  if (S.lab.src === null || S.lab.sink === null) {
+    toast("PICK ENDPOINTS", "SOURCE AND SINK FIRST - CLICK NODES ABOVE.", true);
+    return;
+  }
+  slimeStop();
+  var body = {
+    source: S.lab.src, sink: S.lab.sink,
+    g: parseFloat($("#slime-exp").value),
+    mu: parseFloat($("#slime-mu").value),
+    dt: parseFloat($("#slime-dt").value),
+    I0: parseFloat($("#slime-i0").value)
+  };
+  $("#slime-result").classList.remove("slime-empty");
+  $("#slime-result").textContent = "SOLVING...";
+  api("/api/physarum", { method: "POST", body: body })
+    .then(function (res) {
+      S.lab.data = res;
+      S.lab.frame = 0;
+      S.lab.finalIters = res.iterations;
+      S.lab.gdata = null;
+      $("#slime-step").max = String(res.frames.length - 1);
+      $("#slime-step").value = "0";
+      slimeShowResultPath(res);
+      slimeOverlayDijkstra();
+      if (slimeReduced()) slimeShowFrame(res.frames.length - 1);
+      else { slimeShowFrame(0); slimePlay(); }
+      slimeUpdatePlayback();
+    })
+    .catch(function (e) {
+      slimeErrorIn("#slime-result", String(e.message || e), slimeRun);
+      toast("SLIME RUN FAILED", String(e).toUpperCase(), true);
+    });
+}
