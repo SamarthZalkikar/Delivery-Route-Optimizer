@@ -448,3 +448,229 @@ def stop_priority_map(stops):
             if cur is None or order["priority"] < cur:
                 prios[order["location"]] = order["priority"]
     return prios
+
+def solve_route_physarum(stops, depot, priority_first=False):
+    """PHYSARUM LEGS engine: every depot/stop leg is found by the slime-mold
+    tube adaptation (cached in the project's hash table), while the stop
+    ORDER still comes from the classic exact / NN+2-OPT engine. Dijkstra km
+    ride along as ground truth; a leg that misses the 1% bar falls back."""
+    if len(stops) > 8:
+        return None, "PHYSARUM LEGS engine is capped at 8 stops (36 pair solves)"
+    base, err = solve_route(stops, depot, "auto", priority_first)
+    if err:
+        return None, err
+    order = base["stops"]
+    walk = [depot] + order + [depot]
+    prios = stop_priority_map(stops)
+    legs, cum, hops = [], 0.0, []
+    worst_diff, phys_ms, bad = 0.0, 0.0, 0
+    for i in range(len(walk) - 1):
+        a, b = walk[i], walk[i + 1]
+        phops, km, ok, diff, pms = physarum_pair_leg(a, b)
+        phys_ms += pms
+        worst_diff = max(worst_diff, diff)
+        bad += 0 if ok else 1
+        if not phops:
+            return None, "locations %s and %s are not connected" % (a, b)
+        for h in phops:
+            if not hops or hops[-1] != h:
+                hops.append(h)
+        leg_km = round(km, 1)
+        cum = round(cum + leg_km, 1)
+        legs.append({
+            "i": i, "from": a, "to": b,
+            "from_name": STORE.locations[a]["name"],
+            "to_name": STORE.locations[b]["name"],
+            "km": leg_km, "cum": cum,
+            "prio": None if b == depot else prios.get(b),
+        })
+    base["legs"] = legs
+    base["geometry"] = hops
+    base["distance"] = cum
+    base["cum_total"] = cum
+    base["cost"] = round(STORE.cost_model.evaluate(cum), 2)
+    base["eta_min"] = int(round(cum / 30.0 * 60))
+    base["engine_label"] = "PHYSARUM LEGS + " + base["engine_label"]
+    base["algorithm"] = "PHYSARUM ADAPTATION (TERO 2010) LEGS + " + base["algorithm"]
+    base["dsa_used"] = base["dsa_used"] + ["PHYSARUM CG", "HASH TABLE"]
+    base["physarum"] = {
+        "pair_ms": round(phys_ms, 1),
+        "pairs": len(walk) - 1,
+        "worst_diff_pct": round(worst_diff, 3),
+        "fallback_pairs": bad,
+        "note": "LEG DISTANCES FROM SLIME TUBE ADAPTATION; DIJKSTRA IS THE "
+                "REFERENCE (%d/%d LEGS MISSING THE 1%% BAR USED DIJKSTRA KM)"
+                % (bad, len(walk) - 1),
+    }
+    if bad:
+        base["fallback_note"] = ("PHYSARUM LEGS: %d OF %d LEGS FELL BACK TO "
+                                 "DIJKSTRA KM (TUBES MISSED THE 1%% BAR)"
+                                 % (bad, len(walk) - 1))
+    return base, None
+
+def solve_route(stops, depot, engine, priority_first=False):
+    """Shared solve for /api/optimize and /api/optimize/compare.
+    Returns dict with order / geometry / legs / engine label / notes or an
+    error message string (caller turns it into a 4xx body)."""
+    notes = []
+    fallback_note = None
+
+    def run(group, start, eng, note=None):
+        """Run one engine pass; fall back to auto when exact gets too big."""
+        mode = eng
+        if mode == "exact" and len(group) > 9:
+            mode = "auto"
+            if note is not None:
+                notes.append(note)
+        return STORE.optimizer.optimize(group, start, mode=mode)
+
+    if priority_first:
+        prios = stop_priority_map(stops)
+        express = [s for s in stops if prios.get(s) == 1]
+        rest = [s for s in stops if prios.get(s) != 1]
+        if not express or not rest:
+            priority_first = False
+    order, ms, steps, pruned = [], 0.0, 0, 0
+    start = depot
+    if priority_first:
+        r1 = run(express, depot, engine, "EXACT engine capped at 9; AUTO used for the express group")
+        order += r1["order"]
+        ms += r1["ms"]
+        steps += r1["steps"]
+        pruned += r1["pruned"]
+        start = order[-1] if order else depot
+        r2 = run(rest, start, engine, "EXACT engine capped at 9; AUTO used for the rest group")
+        order += r2["order"]
+        ms += r2["ms"]
+        steps += r2["steps"]
+        pruned += r2["pruned"]
+        priority_note = "EXPRESS (E=P1) STOPS ARE VISITED FIRST, THEN THE REST - " \
+                        "THE OVERALL ROUTE IS THEN APPROXIMATE, NOT OPTIMAL"
+        engine_used = r1["engine"] if r1["engine"] == r2["engine"] else "auto"
+        algo_used = r1["algorithm"] if r1["engine"] == r2["engine"] else \
+            "GROUPED SEQ (" + r1["engine"] + " + " + r2["engine"] + ")"
+        complexity_used = r1["complexity"]
+    else:
+        r0 = run(stops, depot, engine, "EXACT engine is capped at 9 stops - ran AUTO (NN + 2-OPT) instead")
+        if notes:
+            fallback_note = notes[0]
+        order = r0["order"]
+        ms += r0["ms"]
+        steps += r0["steps"]
+        pruned += r0["pruned"]
+        engine_used = r0["engine"]
+        algo_used = r0["algorithm"]
+        complexity_used = r0["complexity"]
+        priority_note = None
+
+    if order and (not priority_first) and STORE.optimizer.tour_cost(order, depot) < 1e-12:
+        return None, "route could not be solved for these stops"
+    hops = route_geometry(depot, order)
+    total = STORE.optimizer.tour_cost(order, depot)
+    costs = STORE.cost_model.evaluate(total)
+
+    prios = stop_priority_map(stops)
+    legs, cum = [], 0.0
+    Walk = [depot] + order + [depot]
+    for i in range(len(Walk) - 1):
+        a, b = Walk[i], Walk[i + 1]
+        km = round(STORE.dist[a][b], 1)
+        cum = round(cum + km, 1)
+        legs.append({
+            "i": i, "from": a, "to": b,
+            "from_name": STORE.locations[a]["name"],
+            "to_name": STORE.locations[b]["name"],
+            "km": km, "cum": cum,
+            "prio": None if b == depot else prios.get(b),
+        })
+    return {
+        "depot": depot,
+        "stops": order,
+        "stop_names": [STORE.locations[i]["name"] for i in order],
+        "geometry": hops,
+        "distance": total,
+        "cum_total": cum,
+        "cost": round(costs, 2),
+        "cost_terms": STORE.cost_model.to_display().replace("x", "d"),
+        "eta_min": int(round(total / 30.0 * 60)),
+        "algorithm": algo_used,
+        "engine_label": ENGINE_LABELS[engine_used] if engine_used in ENGINE_LABELS else engine_used,
+        "complexity": complexity_used,
+        "ms": round(ms, 3),
+        "nodes_explored": steps,
+        "pruned": pruned,
+        "legs": legs,
+        "dsa_used": ["STACK", "MIN-HEAP", "DIJKSTRA", "GRAPH", "SPARSE MATRIX"],
+        "priority_note": priority_note,
+        "fallback_note": fallback_note,
+        "exact_cap": stops and len(stops) > 9,
+    }, None
+
+@app.route("/api/optimize", methods=["POST"])
+def api_optimize():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return json_error("body must be a JSON object")
+    stops, err = validate_stops(data.get("stops"))
+    if err:
+        return json_error(err)
+    depot, err = validate_depot(data.get("depot"))
+    if err:
+        return json_error(err)
+    engine = data.get("engine") or data.get("mode") or "auto"
+    if engine not in ("exact", "nn", "nn2opt", "heuristic", "auto", "physarum"):
+        return json_error("engine must be auto | exact | nn | nn2opt | physarum")
+    if not stops:
+        return json_error("select at least one stop to optimize")
+    if engine == "physarum" and len(stops) > 8:
+        return json_error("PHYSARUM LEGS engine is capped at 8 stops "
+                          "(36 pair solves)")
+    priority_first = bool(data.get("priority_first"))
+    if engine == "physarum":
+        result, err = solve_route_physarum(stops, depot, priority_first)
+        if err:
+            return json_error(err)
+        return jsonify(result)
+    if engine != "auto" and len(stops) > 12:
+        return json_error("at most 12 stops per route run")
+    priority_first = bool(data.get("priority_first"))
+    result, err = solve_route(stops, depot, engine, priority_first)
+    if err:
+        return json_error(err)
+    return jsonify(result)
+
+@app.route("/api/optimize/compare", methods=["POST"])
+def api_optimize_compare():
+    """Run every engine on the same stop set; best row = lowest km."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return json_error("body must be a JSON object")
+    stops, err = validate_stops(data.get("stops"))
+    if err:
+        return json_error(err)
+    depot, err = validate_depot(data.get("depot"))
+    if err:
+        return json_error(err)
+    if not stops:
+        return json_error("select at least one stop to compare")
+    rows = []
+    for engine in ("exact", "nn", "nn2opt", "auto"):
+        label = ENGINE_LABELS[engine]
+        if engine == "exact" and len(stops) > 9:
+            rows.append({"engine": label, "km": None, "ms": 0,
+                         "note": "SKIPPED (EXACT CAPS AT 9 STOPS)"})
+            continue
+        r = STORE.optimizer.optimize(stops, depot, mode=engine)
+        rows.append({"engine": label, "km": r["cost"], "ms": round(r["ms"], 3),
+                     "algorithm": r["algorithm"], "note": None})
+    best = None
+    for row in rows:
+        if row["km"] is not None and (best is None or row["km"] < best["km"]):
+            best = row
+    for row in rows:
+        row["best"] = False
+    if best is not None:
+        best["best"] = True
+    return jsonify({"rows": rows, "stops": len(stops)})
+
+@app.route("/api/drivers/assign", methods=["POST"])
