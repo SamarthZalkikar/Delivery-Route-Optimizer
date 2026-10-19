@@ -80,3 +80,88 @@ class TestPhysarumCore(unittest.TestCase):
 
 class TestPhysarumAgainstDijkstra(unittest.TestCase):
     """20 deterministic stop pairs: slime km == dijkstra km within 1%."""
+
+    def test_twenty_pairs_city_graph(self):
+        net = PhysarumNetwork(A.STORE.g.n, A.STORE.g.edges)
+        state = [42]
+
+        def lcg():
+            state[0] = (1103515245 * state[0] + 12345) % 2147483648
+            return state[0]
+
+        n = A.STORE.g.n
+        matched = 0
+        for _t in range(20):
+            a = lcg() % n
+            b = lcg() % n
+            while b == a:
+                b = (b + 1) % n
+            res = net.solve(a, b)
+            dk = A.STORE.dist[a][b]
+            if res["path"] is not None:
+                diff = abs(res["km"] - dk) / dk * 100
+                self.assertLessEqual(diff, 1.0,
+                                     "pair %d->%d missed the 1%% bar" % (a, b))
+                matched += 1
+        self.assertGreaterEqual(matched, 18,
+                                "tube walk should succeed on nearly all pairs")
+
+class TestPhysarumAPI(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.c = A.app.test_client()
+
+    def test_physarum_endpoint_shape(self):
+        r = self.c.post("/api/physarum", json={"source": 0, "sink": 5})
+        self.assertEqual(r.status_code, 200)
+        j = r.get_json()
+        for key in ("ok", "source", "sink", "path", "km", "physarum_km",
+                    "dijkstra_km", "dijkstra_path", "iterations", "converged",
+                    "within_1pct", "frames", "edges",
+                    "physarum_ms", "dijkstra_ms"):
+            self.assertIn(key, j)
+        self.assertEqual(j["source"], 0)
+        self.assertEqual(j["sink"], 5)
+        self.assertTrue(j["within_1pct"])
+
+        self.assertLessEqual(len(j["frames"]), 120)
+        self.assertEqual(len(j["edges"]), len(j["frames"][0][1]))
+
+    def test_physarum_defaults_kick_in(self):
+        r = self.c.post("/api/physarum", json={"source": 1, "sink": 9})
+        self.assertEqual(r.status_code, 200)
+
+    def test_source_equals_sink_400(self):
+        r = self.c.post("/api/physarum", json={"source": 3, "sink": 3})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("different", r.get_json()["error"])
+
+    def test_bad_parameters_400(self):
+        for bad in ({"g": 9}, {"mu": -1}, {"dt": 5}, {"I0": 0}):
+            body = {"source": 0, "sink": 4}
+            body.update(bad)
+            r = self.c.post("/api/physarum", json=body)
+            self.assertEqual(r.status_code, 400, bad)
+        r = self.c.post("/api/physarum", json={"source": 999, "sink": 4})
+        self.assertEqual(r.status_code, 400)
+
+    def test_physarum_engine_on_optimize(self):
+        r = self.c.post("/api/optimize",
+                        json={"depot": 0, "stops": [1, 2, 3, 4],
+                              "engine": "physarum"})
+        self.assertEqual(r.status_code, 200)
+        j = r.get_json()
+        self.assertIn("PHYSARUM LEGS", j["engine_label"])
+        self.assertIn("physarum", j)
+        self.assertTrue(j["physarum"]["pair_ms"] >= 0)
+        self.assertLessEqual(j["physarum"]["worst_diff_pct"], 1.0)
+
+        self.assertGreaterEqual(len(j["geometry"]), 5)
+
+    def test_physarum_engine_cap(self):
+        r = self.c.post("/api/optimize",
+                        json={"depot": 0, "stops": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                              "engine": "physarum"})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("capped", r.get_json()["error"])
