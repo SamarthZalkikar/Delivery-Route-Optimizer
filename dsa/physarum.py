@@ -64,3 +64,86 @@ def cg_solve(matvec, b, m, tol=1e-8, max_it=200, x0=None):
         rr = rr_new
         its += 1
     return x, its
+
+class PhysarumNetwork:
+    """Edge-array model over local node indices 0..n-1.
+
+    edges: [[u, v, km], ...] with NO duplicate (u, v) pairs (duplicates are
+    merged on init, keeping the shorter length). All state lives in plain
+    lists -- there is no dict/set/heap/sort inside the hot loop."""
+
+    def __init__(self, n, edges):
+
+        clean = []
+        for e in edges:
+            u, v, w = e[0], e[1], float(e[2])
+            if u == v:
+                continue
+            if u > v:
+                u, v = v, u
+            hit = -1
+            for k in range(len(clean)):
+                if clean[k][0] == u and clean[k][1] == v:
+                    hit = k
+                    break
+            if hit >= 0:
+                if w < clean[hit][2]:
+                    clean[hit][2] = w
+            else:
+                clean.append([u, v, w])
+        self.n = n
+        self.edges = clean
+        self.L = [e[2] for e in clean]
+        self.D = [1.0] * len(clean)
+
+        self.nbr = [[] for _ in range(n)]
+        self.nbr_e = [[] for _ in range(n)]
+        for idx in range(len(clean)):
+            u, v = clean[idx][0], clean[idx][1]
+            self.nbr[u].append(v)
+            self.nbr_e[u].append(idx)
+            self.nbr[v].append(u)
+            self.nbr_e[v].append(idx)
+
+    def _pressures(self, src, dst, I0, x0):
+        """Solve the SPD pressure system; returns full-length pressure list.
+
+        Rows: one variable per non-sink node. Sink row deleted; the -D/L
+        column term cancels because p_sink is pinned to 0."""
+        n = self.n
+        var_of = [-1] * n
+        node_of = []
+        vi = 0
+        for i in range(n):
+            if i != dst:
+                var_of[i] = vi
+                node_of.append(i)
+                vi += 1
+        m = vi
+        b = [0.0] * m
+        if src != dst:
+            b[var_of[src]] = float(I0)
+        conds = [self.D[e] / self.L[e] for e in range(len(self.D))]
+
+        def matvec(pv):
+            q = [0.0] * m
+            for k in range(m):
+                nid = node_of[k]
+                pk = pv[k]
+                acc = 0.0
+                for t in range(len(self.nbr[nid])):
+                    j = self.nbr[nid][t]
+                    e = self.nbr_e[nid][t]
+                    pj = pv[var_of[j]] if var_of[j] >= 0 else 0.0
+                    acc += conds[e] * (pk - pj)
+                q[k] = acc
+            return q
+
+        sol, _cgits = cg_solve(matvec, b, m, tol=1e-8, max_it=200,
+                               x0=[x0[node_of[k]] for k in range(m)]
+                               if x0 is not None else None)
+
+        pf = [0.0] * n
+        for k in range(m):
+            pf[node_of[k]] = sol[k]
+        return pf, var_of, conds
