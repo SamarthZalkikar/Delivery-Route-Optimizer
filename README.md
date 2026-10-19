@@ -93,3 +93,27 @@ any time; labels, distances and route styling follow. Five consecutive tile
 errors swap the Leaflet view back to the schematic on its own. Clicking empty
 ground on the real map opens a popup to add a location there, connected to
 its three nearest neighbours.
+
+## Project layout
+
+```
+app.py                 Flask app + all endpoints
+config.py              city seed data (locations, roads, orders)
+dsa/                   hand-written structures, one topic per file
+├── linked.py          dynamic array, singly/doubly linked list
+├── linear.py          stack, queue, min-heap, deque, polynomial
+├── trees.py           BST, AVL, heap wrappers, B-tree, B+ tree
+├── hashing.py         hash table (chaining + open addressing)
+├── sorting.py         shell/quick/merge/heap/counting + external sort
+├── graph.py           Graph, BFS/DFS, Dijkstra, Prim, Kruskal
+├── dsu.py             union-find (union by size + path compression)
+├── sparse.py          linked-row sparse matrix
+├── trie.py            trie + autocomplete
+├── geo.py             haversine, nearest-neighbour helpers
+├── optimizer.py       exact backtracking + NN/2-opt tour solver
+└── physarum.py        the slime model (+ conjugate gradient)
+templates/index.html   the whole UI
+static/                app.js, style.css, map/, vendored Leaflet
+tests/                 92 unit tests
+docs/img/              screenshots
+```
