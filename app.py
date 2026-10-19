@@ -257,3 +257,36 @@ class Store:
         self.btree.delete(num)
         self.bplus.insert(num, None)
         return num
+
+    def lookup_order(self, order_id):
+        """GET /api/orders/<id> -- AVL search answers this in O(log n)."""
+        try:
+            num = int(order_id.split("-")[1])
+        except (ValueError, IndexError):
+            return None
+        val, steps = self.avl.search(num, steps_ret=True)
+        return val, steps
+
+    def pending_sorted(self):
+        """Orders not yet dispatched, sorted via merge_sort_orders."""
+        pend = [o for o in self.orders if o["status"] == "PENDING"]
+        return merge_sort_orders(pend)
+
+    def _seed_labs(self):
+        self.trie = Trie()
+        for loc in self.locations:
+            self.trie.insert(loc["name"])
+
+        self.cost_model = Polynomial([(0.8, 2), (1.2, 1), (35, 0)])
+
+        self.symbol = HashTableChaining(size=7, hashfn=hash_division)
+        for loc in self.locations:
+            self.symbol.insert(loc["id"], loc["name"])
+
+    def dispatch_pq_snapshot(self):
+        """Array-MIN-HEAP dispatch queue rebuilt from pending orders;
+        key = (priority, arrival_seq) so Express pops first, FIFO within."""
+        pq = MinHeapPQ()
+        for order in self.pending_sorted():
+            pq.push((order["priority"], order["seq"]), order["number"])
+        return pq
