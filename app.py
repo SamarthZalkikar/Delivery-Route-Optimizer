@@ -290,3 +290,47 @@ class Store:
         for order in self.pending_sorted():
             pq.push((order["priority"], order["seq"]), order["number"])
         return pq
+
+STORE = Store()
+
+def json_error(msg, code=400):
+    return jsonify({"error": msg}), code
+
+def get_location_or_none(lid):
+    if not isinstance(lid, int) or lid < 0:
+        return None
+    if lid >= len(STORE.locations):
+        return None
+    return STORE.locations[lid]
+
+def validate_order_payload(data):
+    """POST /api/orders input validation -> (clean, error_response)."""
+    if not isinstance(data, dict):
+        return None, json_error("body must be a JSON object")
+    customer = data.get("customer")
+    location = data.get("location")
+    priority = data.get("priority")
+    weight = data.get("weight")
+    if not isinstance(customer, str) or not customer.strip():
+        return None, json_error("'customer' must be a non-empty string")
+    if not isinstance(location, int):
+        return None, json_error("'location' must be an integer location id")
+    if get_location_or_none(location) is None:
+        return None, json_error("unknown location id %r" % (location,))
+    if priority not in (1, 2, 3):
+        return None, json_error("'priority' must be 1 (Express), 2 (Standard) or 3 (Economy)")
+    if not isinstance(weight, (int, float)) or weight <= 0 or weight > 500:
+        return None, json_error("'weight' must be a number in (0, 500] kg")
+    return {"customer": customer.strip(), "location": location,
+            "priority": priority, "weight": float(weight)}, None
+
+def order_public(order):
+    """JSON view of one order (dict use = fine, output shaping only)."""
+    loc = STORE.locations[order["location"]]
+    return {
+        "id": order["id"], "customer": order["customer"],
+        "location": order["location"], "location_name": loc["name"],
+        "priority": order["priority"], "weight": order["weight"],
+        "status": order["status"], "driver": order["driver"],
+        "seq": order["seq"],
+    }
