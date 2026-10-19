@@ -826,3 +826,83 @@ a { color: var(--ink); }
   padding: 8px 10px; margin-top: 10px;
   font: 600 12px var(--mono-label); color: var(--ink);
 }
+.slime-result.slime-empty {
+  border-style: dashed; background: var(--cream);
+}
+.slime-result .kv {
+  display: flex; justify-content: space-between; gap: 12px;
+  font: 600 12px var(--mono-label); padding: 3px 0;
+  border-bottom: 1px dashed var(--grid);
+}
+.slime-result .kv:last-of-type { border-bottom: none; }
+.slime-result .kv .k { color: #333333; font-weight: 700; }
+.slime-result .kv .v { font-weight: 600; text-align: right;
+  font-variant-numeric: tabular-nums; }
+.slime-verdict {
+  font: 700 13px var(--mono-label); color: var(--ink);
+  background: var(--accent-3); border: 2px solid var(--ink);
+  padding: 6px 8px; margin-top: 8px;
+}
+.slime-error-head {
+  font: 700 13px var(--mono-label); color: var(--danger);
+}
+.slime-error-msg {
+  font: 600 12px var(--mono-label); color: var(--ink);
+  margin: 6px 0 8px;
+}
+.slime-result .btn { margin-bottom: 4px; }
+.growth-empty {
+  border: 3px dashed var(--ink); background: var(--cream);
+  color: var(--ink); font: 700 12px var(--mono-label);
+  padding: 12px; margin-bottom: 10px;
+}
+#tab-slime .lab-note, #tab-slime .lab-note.dim { color: var(--ink); }
+
+.slime-svg { width: 100%; height: 100%; display: block; }
+.slime-svg-bg { fill: var(--cream); }
+.slime-road { stroke: #7A746C; stroke-width: 1.5; }
+.slime-node {
+  fill: var(--panel); stroke: var(--ink); stroke-width: 2; cursor: pointer;
+}
+.slime-node:hover { fill: var(--accent-3); }
+.slime-node-depot { fill: var(--ink); }
+.slime-node-src { fill: var(--accent-3); stroke-width: 4; }
+.slime-node-snk { fill: var(--danger); stroke-width: 4; }
+.slime-badge { font: 700 13px var(--mono-label); fill: var(--ink); }
+.slime-svg-path {
+  fill: none; stroke: var(--accent); stroke-width: 5;
+  stroke-linecap: square; stroke-linejoin: round;
+}
+.slime-svg-overlay { stroke: #111111; stroke-width: 2;
+  stroke-dasharray: 7 7; }
+
+@media (max-width: 900px) {
+  .slime-grid { grid-template-columns: 1fr; }
+  .slime-map-panel { position: static; }
+}
+@media (max-width: 560px) {
+  .slime-params-grid { grid-template-columns: 1fr; }
+  .slime-ends { gap: 6px; }
+}
+
+.lk-pop { min-width: 168px; }
+.lk-pop strong { font: 700 13px var(--mono-label); }
+.lk-popbtns { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.lk-popinput { display: flex; gap: 6px; margin-top: 8px; }
+.lk-popinput .in-sm { flex: 1 1 auto; min-width: 90px; }
+.modeswitch { display: inline-flex; gap: 0; }
+.modeswitch .btn[aria-pressed="true"] { background: var(--accent-2); }
+#tiles-note { display: flex; align-items: center; gap: 10px; }
+
+.tab-loading {
+  grid-column: 1 / -1;
+  border: 2px dashed var(--ink); background: var(--panel);
+  font: 700 12px var(--mono-label); letter-spacing: 1px;
+  padding: 8px 12px; text-align: center;
+  animation: tabpulse 1s steps(2) infinite;
+}
+@keyframes tabpulse { 50% { opacity: 0.45; } }
+.tab-error { border: 3px solid var(--danger); }
+.tab-error .btn { margin-top: 8px; }
+#tab-dispatch.is-active, #tab-orders.is-active, #tab-network.is-active,
+#tab-lab.is-active, #tab-slime.is-active, #tab-dsamap.is-active { display: grid; }
