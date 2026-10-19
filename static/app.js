@@ -1961,3 +1961,139 @@ function slimeRun() {
       toast("SLIME RUN FAILED", String(e).toUpperCase(), true);
     });
 }
+
+function slimeShowResultPath(res) {
+  var box = $("#slime-result");
+  box.classList.remove("slime-empty");
+  box.innerHTML = "";
+  function row(k, v) {
+    var r = document.createElement("div");
+    r.className = "kv";
+    var a = document.createElement("span");
+    a.className = "k"; a.textContent = k;
+    var b = document.createElement("span");
+    b.className = "v"; b.textContent = v;
+    r.appendChild(a); r.appendChild(b);
+    box.appendChild(r);
+  }
+  var status = res.converged ? "CONVERGED" : "MAX ITERATIONS";
+  if (res.converged && res.converged_at !== null && res.converged_at !== undefined) {
+    status += " (AT ITER " + res.converged_at + ")";
+  }
+  if (res.note && (!res.within_1pct || res.path !== res.dijkstra_path)) {
+    status += " - " + res.note;
+  }
+  row("STATUS", status);
+  row("ITERATIONS", String(res.iterations));
+  row("PHYSARUM KM", String(res.physarum_km));
+  row("DIJKSTRA KM", res.dijkstra_km + (res.within_1pct ? "  (MATCH)" : "  (MISS)"));
+  row("SOLVE MS", "SLIME " + res.physarum_ms + " / DIJKSTRA " + res.dijkstra_ms);
+  if (res.path) {
+    row("PATH", res.path.map(function (id) {
+      return locById(id) ? locById(id).name : "#" + id;
+    }).join(" > "));
+  }
+}
+
+function slimeOverlayDijkstra() {
+  var res = S.lab.data;
+  var on = $("#slime-show-djk") && $("#slime-show-djk").checked;
+  if (!res || !on) { slimeEngine("setOverlay", null); return; }
+  var pairs = [];
+  for (var i = 1; i < res.dijkstra_path.length; i++) {
+    pairs.push([res.dijkstra_path[i - 1], res.dijkstra_path[i]]);
+  }
+  slimeEngine("setOverlay", pairs);
+}
+
+function slimeGrowthRun() {
+  var stops = slimeGrowthStops();
+  if (stops.length < 2) {
+    toast("NEED STOPS", "PICK STOPS IN DISPATCH OR CLICK NODES HERE.", true);
+    return;
+  }
+  slimeStop();
+  $("#slime-result-g").classList.remove("slime-empty");
+  $("#slime-result-g").textContent = "GROWING...";
+  api("/api/physarum/growth", {
+    method: "POST",
+    body: {
+      stops: stops,
+      pairs: parseInt($("#slime-pairs").value, 10) || 8,
+      iters: 6,
+      seed: parseInt($("#slime-seed").value, 10) || 7,
+      prune: parseFloat($("#slime-prune").value)
+    }
+  }).then(function (res) {
+
+    var frames = res.frames.map(function (f, i) {
+      return [i, f.D, f.pair || null];
+    });
+    var data = {
+      frames: frames, edges: res.edges,
+      iterations: frames.length - 1, converged: true,
+      surviving: res.surviving, mst_edges: res.mst_edges
+    };
+    S.lab.gdata = data;
+    S.lab.data = null;
+    S.lab.frame = 0;
+    $("#slime-step").max = String(frames.length - 1);
+    $("#slime-step").value = "0";
+    slimeShowResultGrowth(res);
+    slimeOverlayMst();
+    if (slimeReduced()) slimeShowFrame(frames.length - 1);
+    else { slimeShowFrame(0); slimePlay(); }
+    slimeUpdatePlayback();
+  }).catch(function (e) {
+    slimeErrorIn("#slime-result-g", String(e.message || e), slimeGrowthRun);
+    toast("GROWTH FAILED", String(e).toUpperCase(), true);
+  });
+}
+
+function slimeShowResultGrowth(res) {
+  var box = $("#slime-result-g");
+  box.classList.remove("slime-empty");
+  box.innerHTML = "";
+  function row(k, v) {
+    var r = document.createElement("div");
+    r.className = "kv";
+    var a = document.createElement("span");
+    a.className = "k"; a.textContent = k;
+    var b = document.createElement("span");
+    b.className = "v"; b.textContent = v;
+    r.appendChild(a); r.appendChild(b);
+    box.appendChild(r);
+  }
+  row("REMOVED TUBES", String(res.removed));
+  row("SLIME NETWORK", res.total_length + " KM");
+  row("KRUSKAL MST", (res.mst_total === null ? "N/A" : res.mst_total + " KM"));
+  row("FULL GRAPH", res.full_total + " KM");
+  row("AVG STOP PATH", res.avg_stop_path === null ? "DISCONNECTED"
+    : res.avg_stop_path + " KM");
+  row("SEED", String(res.seed) + " (PRUNE " + res.prune + ")");
+  var verd = document.createElement("div");
+  verd.className = "slime-verdict";
+  verd.textContent = res.verdict;
+  box.appendChild(verd);
+}
+
+function slimeOverlayMst() {
+  var g = S.lab.gdata;
+  var on = $("#slime-show-mst") && $("#slime-show-mst").checked;
+  if (!g || !on) { slimeEngine("setOverlay", null); return; }
+  slimeEngine("setOverlay", (g.mst_edges || []).map(function (e) {
+    return [e[0], e[1]];
+  }));
+}
+
+function slimeShowFrame(i) {
+  var growth = slimeMode() === "growth";
+  var d = growth ? S.lab.gdata : S.lab.data;
+  if (!d || !d.frames.length) return;
+  i = Math.max(0, Math.min(d.frames.length - 1, i));
+  S.lab.frame = i;
+  var f = d.frames[i];
+  var dmax = 0;
+  for (var e = 0; e < f[1].length; e++) {
+    if (f[1][e] > dmax) dmax = f[1][e];
+  }
