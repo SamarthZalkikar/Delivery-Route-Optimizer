@@ -117,3 +117,31 @@ static/                app.js, style.css, map/, vendored Leaflet
 tests/                 92 unit tests
 docs/img/              screenshots
 ```
+
+## API sketch
+
+| Route | What it does |
+|---|---|
+| `GET /api/state` | locations, roads, orders, drivers, queue, log |
+| `POST /api/locations` | add a location + auto-connect 3 nearest |
+| `POST /api/orders` | validate and enqueue an order |
+| `POST /api/dispatch` | pop heap → assign driver → append log |
+| `POST /api/orders/undo` | stack-based undo of the last action |
+| `GET /api/orders/lookup/<id>` | AVL lookup with step counts |
+| `POST /api/optimize` | route solve (`engine: exact/heuristic/physarum`) |
+| `POST /api/optimize/compare` | exact vs heuristic side by side |
+| `POST /api/drivers/assign` | manual driver assignment |
+| `GET /api/network` | components, MST duel, BFS/DFS runs |
+| `GET /api/matrix` | sparse road matrix + density |
+| `GET /api/lab/sort` · `/api/lab/external-sort` · `/api/lab/hash` · `GET /api/lab/search` | the algorithms bench |
+| `POST /api/physarum` | one source→sink slime solve + Dijkstra twin |
+| `POST /api/physarum/growth` | Tokyo-rail growth over selected stops |
+| `GET /api/dsamap` | raw structure dumps for the DSA map |
+
+## Things we know are rough
+
+- The seed city is small (14 locations); the exact optimizer caps at 9 stops,
+  and the Physarum engine caps at 8 because it's pairwise.
+- Physarum's pressure solve can wobble on graphs with huge weight spread;
+  that's what the Dijkstra fallback is for.
+- No persistence — the world resets on restart (seeded, so demos repeat).
