@@ -1133,3 +1133,58 @@ def api_search_demo():
     return jsonify({"array": ids[:12] + ["..."], "n": n, "target": target,
                     "linear": {"index": li, "steps": lsteps},
                     "binary": {"index": bi, "steps": bsteps}})
+
+DSA_MAP = [
+    ["UNIT I", "Dynamic stack (array doubling/halving)",
+     "dsa/linear.py:DynStack -- undo / DFS fringe / path reconstruction"],
+    ["UNIT I", "Multiple stacks in one array",
+     "dsa/linear.py:TwoStacks + NStacksOneArray (free-list cell allocator)"],
+    ["UNIT I", "Priority queue: array min-heap",
+     "dsa/linear.py:MinHeapPQ -- dispatch, Dijkstra, Prim, k-way merge"],
+    ["UNIT I", "Priority queue: sorted linked list",
+     "dsa/linear.py:SortedListPQ -- O(n) insert / O(1) pop contrast"],
+    ["UNIT I", "Circular queue", "dsa/linear.py:CircularQueue -- driver round-robin"],
+    ["UNIT I", "Deque + input/output-restricted",
+     "dsa/linear.py:ArrayDeque/DequeIR/DequeOR -- BFS fringe"],
+    ["UNIT I", "Header linked list", "dsa/linked.py:HeaderLinkedList (sparse rows)"],
+    ["UNIT I", "Circular linked list", "dsa/linked.py:CircularLinkedList -- delivery loop"],
+    ["UNIT I", "Polynomial as linked list",
+     "dsa/linked.py:Polynomial -- transport cost model, add/multiply/evaluate"],
+    ["UNIT I", "Sparse matrix as linked rows",
+     "dsa/sparse.py:SparseMatrix -- road distance matrix density"],
+    ["UNIT II", "BST", "dsa/trees.py:BST insert/search/delete + 3 traversals"],
+    ["UNIT II", "Threaded binary tree",
+     "dsa/trees.py:ThreadedBST -- inorder with no stack, successor threads"],
+    ["UNIT II", "AVL (4 rotations)",
+     "dsa/trees.py:AVLTree -- order-ID index #1, insert/delete/search"],
+    ["UNIT II", "B-tree", "dsa/trees.py:BTree -- order-ID index #2, full delete"],
+    ["UNIT II", "B+ tree", "dsa/trees.py:BPlusTree -- leaf chain range scans"],
+    ["UNIT III", "Adjacency-list graph", "dsa/graph.py:Graph"],
+    ["UNIT III", "DFS / BFS", "/api/traverse -- DynStack fringe / ArrayDeque"],
+    ["UNIT III", "Connected components", "dsa/graph.py:connected_components"],
+    ["UNIT III", "Dijkstra + paths", "distance matrix behind /api/optimize"],
+    ["UNIT III", "Prim / Kruskal MST", "/api/network side-by-side totals"],
+    ["UNIT IV", "Shell / Quick / Merge / Heap / Counting sort",
+     "dsa/sorting.py + /api/sort-bench benchmark chart"],
+    ["UNIT IV", "Internal vs external sort", "external_sort chunks + k-way merge"],
+    ["UNIT IV", "Linear vs binary search", "/api/search-demo step counter"],
+    ["UNIT IV", "Hashing (chaining + open addressing)",
+     "dsa/hashing.py + /api/hash-demo buckets and collisions"],
+    ["UNIT V", "Trie", "location autocomplete /api/search"],
+    ["UNIT V", "Disjoint set", "Kruskal + components via DSU"],
+]
+
+@app.route("/api/dsa-map")
+def api_dsa_map():
+    return jsonify({"entries": DSA_MAP})
+
+@app.errorhandler(404)
+def not_found(_e):
+    return json_error("unknown API route", 404)
+
+@app.errorhandler(405)
+def bad_method(_e):
+    return json_error("HTTP method not allowed here", 405)
+
+if __name__ == "__main__":
+    app.run(debug=True)
