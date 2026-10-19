@@ -474,3 +474,33 @@
         </div>
       </div>
     </div>
+  </section>
+
+  <section class="grid hidden" id="tab-dsamap" role="tabpanel" aria-labelledby="tabbtn-dsamap">
+    <div class="tab-loading" data-loading hidden>LOADING...</div>
+    <div class="panel col-12">
+      <div class="panel-title"><span>DSA MAP -- EVERY SYLLABUS TOPIC = A PLACE IN THIS APP</span><span class="winbtns">[ _ ][ X ]</span></div>
+      <div class="panel-body x-scroll">
+        <table class="tbl" id="dsamap-tbl">
+          <thead><tr><th>UNIT</th><th>TOPIC</th><th>WHERE IT LIVES</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="toast-root" class="toast-root" aria-live="polite"></div>
+<div id="loader" class="loader hidden" aria-hidden="true">
+  <span class="loader-text">LOADING...</span>
+  <span class="loader-bar" id="loader-bar"></span>
+</div>
+
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+<script src="{{ url_for('static', filename='map/leaflet-map.js') }}"></script>
+<script src="{{ url_for('static', filename='map/map-view.js') }}"></script>
+<script src="{{ url_for('static', filename='map/slime-map.js') }}"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
