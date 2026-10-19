@@ -2202,3 +2202,107 @@ function slimeOnShow() {
       return !!locById(id);
     });
   }
+  slimeMount();
+  if (slimeMode() === "growth") slimeUpdateGrowthUi();
+  slimeStatus();
+  slimeUpdateRun();
+  slimeUpdatePlayback();
+}
+
+function labInit() {
+  if (!S.lab) {
+    S.lab = {
+      src: null, sink: null, pick: null, data: null, gdata: null,
+      frame: 0, timer: null, finalIters: 0, mode: "path",
+      gStops: [], speed: 1
+    };
+  }
+  slimeMount();
+
+  $("#btn-slime-path").addEventListener("click", function () { slimeSetMode("path"); });
+  $("#btn-slime-growth").addEventListener("click", function () { slimeSetMode("growth"); });
+  $("#slime-mu").addEventListener("input", slimeParams);
+  $("#slime-dt").addEventListener("input", slimeParams);
+  $("#slime-i0").addEventListener("input", slimeParams);
+  $("#slime-exp").addEventListener("input", slimeParams);
+  $("#slime-prune").addEventListener("input", function () {
+    $("#slime-prune-val").textContent = $("#slime-prune").value;
+    slimeFill(this);
+  });
+  $("#slime-step").addEventListener("input", function () {
+    slimeFill(this);
+    slimeStop();
+    slimeShowFrame(parseInt(this.value, 10));
+  });
+  $("#btn-slime-reset").addEventListener("click", slimeResetDefaults);
+  $("#btn-slime-run").addEventListener("click", slimeRun);
+  $("#btn-slime-swap").addEventListener("click", slimeSwap);
+  $("#btn-slime-clear").addEventListener("click", slimeClearAll);
+  $("#slime-show-djk").addEventListener("change", slimeOverlayDijkstra);
+  $("#slime-show-mst").addEventListener("change", slimeOverlayMst);
+  $("#btn-slime-growth-run").addEventListener("click", slimeGrowthRun);
+  $("#slime-seed-random").addEventListener("click", function () {
+    $("#slime-seed").value = String(Math.floor(Math.random() * 1000000));
+  });
+  $("#slime-pairs-minus").addEventListener("click", function () {
+    slimeStepPairs(-1);
+  });
+  $("#slime-pairs-plus").addEventListener("click", function () {
+    slimeStepPairs(1);
+  });
+  $("#slime-pairs").addEventListener("input", function () {
+    $("#slime-pairs-val").textContent = $("#slime-pairs").value;
+  });
+
+  $("#btn-slime-play").addEventListener("click", function () {
+    if (S.lab.timer) slimeStop(); else slimePlay();
+  });
+  $("#btn-slime-prev").addEventListener("click", function () {
+    slimeStop();
+    slimeShowFrame(S.lab.frame - 1);
+  });
+  $("#btn-slime-next").addEventListener("click", function () {
+    slimeStop();
+    slimeShowFrame(S.lab.frame + 1);
+  });
+  $("#slime-speed").addEventListener("change", function () {
+    if (S.lab.timer) { slimeStop(); slimePlay(); }
+  });
+  slimeParams();
+  slimeStatus();
+  slimeUpdateRun();
+  slimeUpdateGrowthUi();
+  slimeUpdatePlayback();
+  slimeSetMode("path");
+}
+
+function slimeStepPairs(dir) {
+  var inp = $("#slime-pairs");
+  var v = parseInt(inp.value, 10) || 8;
+  v = Math.max(1, Math.min(24, v + dir));
+  inp.value = String(v);
+  $("#slime-pairs-val").textContent = String(v);
+}
+
+function slimeSetMode(which) {
+  S.lab.mode = which === "growth" ? "growth" : "path";
+  var isPath = S.lab.mode === "path";
+  $("#slime-mode-path").classList.toggle("hidden", !isPath);
+  $("#slime-mode-growth").classList.toggle("hidden", isPath);
+  $("#btn-slime-path").setAttribute("aria-pressed", isPath ? "true" : "false");
+  $("#btn-slime-growth").setAttribute("aria-pressed", isPath ? "false" : "true");
+  slimeStop();
+
+  var d = isPath ? S.lab.data : S.lab.gdata;
+  if (d && d.frames.length) {
+    slimeShowFrame(Math.min(S.lab.frame, d.frames.length - 1));
+  } else {
+    slimeEngine("setEdgeStyles", {});
+    slimeEngine("setSlimePath", null, false);
+  }
+  if (isPath) { slimeOverlayDijkstra(); slimeStatus(); slimeUpdateRun(); }
+  else { slimeOverlayMst(); slimeUpdateGrowthUi(); }
+  slimeUpdatePlayback();
+}
+
+document.addEventListener("DOMContentLoaded", boot);
