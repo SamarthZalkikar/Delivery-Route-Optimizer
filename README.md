@@ -84,3 +84,12 @@ usually agrees with Dijkstra (and the UI says so when it does), but if it
 misses, the Dijkstra path is what ships. Every solve reports both.
 
 ![Failure state: a stale endpoint id after a store reseed renders the designed boxy `! ERROR` panel with RETRY instead of a blank tab](docs/img/slime-error-state.png)
+
+## The map
+
+Two engines render the same graph: a hand-drawn SVG schematic (cream grid,
+squares for locations) and a Leaflet map with OSM/CARTO tiles. You can switch
+any time; labels, distances and route styling follow. Five consecutive tile
+errors swap the Leaflet view back to the schematic on its own. Clicking empty
+ground on the real map opens a popup to add a location there, connected to
+its three nearest neighbours.
