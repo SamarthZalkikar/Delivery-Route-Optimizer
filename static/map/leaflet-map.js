@@ -428,3 +428,130 @@
       Object.keys(lineByEdge).forEach(function (key) {
         lineByEdge[key].setStyle({ weight: 2, color: ROAD_COLOR, opacity: 1 });
       });
+    }
+
+    function setSourceSink(a, b) {
+      badgeLayer.eachLayer(function (m) {
+        if (m.options.slimeBadge) badgeLayer.removeLayer(m);
+      });
+      badgeLayer.clearLayers();
+      [[a, "S", "lk-badge lk-src"], [b, "T", "lk-badge lk-dst"]]
+        .forEach(function (pair) {
+          var id = pair[0];
+          if (id === null || id === undefined || !byId[id]) return;
+          L.marker([byId[id].lat, byId[id].lng], {
+            icon: L.divIcon({
+              className: "lk-wrap",
+              html: '<div class="' + pair[2] + '">' + pair[1] + '</div>',
+              iconSize: [16, 16], iconAnchor: [8, 8]
+            }),
+            interactive: false, keyboard: false, slimeBadge: true,
+            zIndexOffset: 800
+          }).addTo(badgeLayer);
+        });
+    }
+
+    function setSlimePath(hops, on) {
+      slimeLayer.clearLayers();
+      if (!on || !hops || hops.length < 2) return;
+      var latlngs = hops.map(function (nid) {
+        return [byId[nid].lat, byId[nid].lng];
+      });
+      L.polyline(latlngs, { color: "#1A1A1A", weight: 9, opacity: 0.9,
+                            lineCap: "square" }).addTo(slimeLayer);
+      L.polyline(latlngs, { color: "#FF5A36", weight: 5, lineCap: "square" })
+        .addTo(slimeLayer);
+    }
+
+    function setOverlay(pairs) {
+      overlayLayer.clearLayers();
+      if (!pairs || !pairs.length) return;
+      pairs.forEach(function (pr) {
+        var a = byId[pr[0]], b = byId[pr[1]];
+        if (!a || !b) return;
+        L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
+          color: "#111111", weight: 2, opacity: 0.95,
+          dashArray: "7 7", interactive: false
+        }).addTo(overlayLayer);
+      });
+    }
+
+    function highlightLeg(idx) {
+      legLines.forEach(function (l) {
+        var on = l.idx === idx;
+        l.poly.setStyle({
+          weight: on ? 9 : 5,
+          color: on ? "#2EC4B6" : "#FF5A36"
+        });
+        if (on) l.poly.bringToFront();
+      });
+    }
+
+    map.on("click", function (e) {
+      if (hooks.onEmptyClick) hooks.onEmptyClick(e.latlng);
+    });
+
+    function openRawPopup(latlng, html) {
+      L.popup({ closeButton: true, minWidth: 190, offset: [0, 2] })
+        .setLatLng(latlng).setContent(html).openOn(map);
+      var input = host.querySelector("#pop-loc-name");
+      var btn = host.querySelector("#pop-loc-add");
+      if (btn) btn.addEventListener("click", function () {
+        var name = input ? input.value.trim() : "";
+        if (!name || !/^[A-Za-z0-9 \-']+$/.test(name)) {
+          if (input) input.style.borderColor = "#E63946";
+          return;
+        }
+        map.closePopup();
+        if (hooks.onAddLocation) hooks.onAddLocation(latlng, name);
+      });
+      if (input) input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") e.preventDefault();
+        if (e.key === "Enter" && btn) btn.click();
+      });
+      setTimeout(function () { if (input) input.focus(); }, 60);
+    }
+
+    function fit() {
+      var pts = Object.keys(byId).map(function (k) {
+        return [byId[k].lat, byId[k].lng];
+      });
+      if (pts.length) {
+        map.fitBounds(L.latLngBounds(pts), { padding: [24, 24] });
+      }
+    }
+
+    return {
+      setNodes: setNodes,
+      setRoads: setRoads,
+      setWeightLabels: setWeightLabels,
+      setLabelMode: setLabelMode,
+      setRoute: setRoute,
+      setEdgeStyles: setEdgeStyles,
+      clearEdgeStyles: clearEdgeStyles,
+      setSourceSink: setSourceSink,
+      setSlimePath: setSlimePath,
+      setOverlay: setOverlay,
+      highlightLeg: highlightLeg,
+      playRoute: playRoute,
+      stopTrack: stopTrack,
+      hideTruck: hideTruck,
+      setFollow: setFollow,
+      _openPopup: openRawPopup,
+      fit: fit,
+      setBase: setBase,
+      activeBase: function () { return active; },
+      fallbackActive: fallbackActive,
+      retryTiles: retry,
+      refreshFormats: refreshLabels,
+      invalidate: function () { map.invalidateSize(); },
+      destroy: function () {
+        map.off();
+        map.remove();
+        while (host.firstChild) host.removeChild(host.firstChild);
+      }
+    };
+  }
+
+  window.DRO_createLeafletMap = createLeafletMap;
+})();
