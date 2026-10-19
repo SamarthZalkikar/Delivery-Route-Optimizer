@@ -945,3 +945,64 @@ def api_orders_undo():
     return json_error("unknown undo entry", 500)
 
 @app.route("/api/orders/dispatch", methods=["POST"])
+def api_orders_dispatch():
+    pq = STORE.dispatch_pq_snapshot()
+    if pq.is_empty():
+        return json_error("no pending orders to dispatch", 422)
+    key, number = pq.pop_min()
+    for o in STORE.orders:
+        if o["number"] == number:
+            o["status"] = "DISPATCHED"
+            driver = STORE.drivers.dequeue()
+            STORE.drivers.enqueue(driver)
+            o["driver"] = driver
+            STORE.deliveries.append(number)
+            STORE.undo.push(["DISPATCH", o["id"]])
+            return jsonify({"ok": True, "order": order_public(o), "queue_key": key})
+    return json_error("dispatch queue stale", 500)
+
+@app.route("/api/orders/sorted")
+def api_orders_sorted():
+    """Sorted list view = the project's own merge sort (stable)."""
+    out = []
+    for o in merge_sort_orders(STORE.orders):
+        out.append(order_public(o))
+    return jsonify({"algo": "merge_sort (stable): priority ASC, weight DESC",
+                    "orders": out})
+
+@app.route("/api/orders/<order_id>")
+def api_orders_get(order_id):
+    hit = STORE.lookup_order(order_id)
+    if hit is None:
+        return json_error("order id must look like ORD-1234", 400)
+    order, steps = hit
+    if order is None:
+        return json_error("no order with id %s" % order_id, 404)
+
+    num = order["number"]
+    window = STORE.bplus.range_scan(num - 2, num + 2)
+    return jsonify({"order": order_public(order),
+                    "index": "AVL tree over order number",
+                    "search_steps": steps,
+                    "bplus_chain": ["ORD-%d" % k for k, _v in window
+                                    if _v is not None]})
+
+@app.route("/api/network")
+def api_network():
+    s = STORE
+    prims_edges, prims_total = prim_mst(s.g)
+    krusk_edges, krusk_total = kruskal_mst(s.g)
+    bfs, levels = bfs_order(s.g, 0)
+    return jsonify({
+        "components": s.components,
+        "component_count": len(s.components),
+        "prim": {"edges": prims_edges, "total": prims_total},
+        "kruskal": {"edges": krusk_edges, "total": krusk_total},
+        "bfs_from_depot": {"order": bfs, "levels": levels},
+        "density": round(s.sparse.density(), 3),
+        "sparse_rows": s.sparse.as_rows_json(),
+        "sparse_shape": [s.g.n, s.g.n],
+        "adjacency_count": s.g.edge_count(),
+    })
+
+@app.route("/api/traverse")
