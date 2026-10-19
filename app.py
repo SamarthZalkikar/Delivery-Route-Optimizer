@@ -1006,3 +1006,130 @@ def api_network():
     })
 
 @app.route("/api/traverse")
+def api_traverse():
+    mode = (request.args.get("mode") or "bfs").lower()
+    if mode not in ("bfs", "dfs"):
+        return json_error("mode must be bfs or dfs")
+    start_raw = request.args.get("start")
+    if start_raw is None:
+        return json_error("query param start is required")
+    try:
+        start = int(start_raw)
+    except ValueError:
+        return json_error("start must be an integer location id")
+    if start < 0 or start >= len(STORE.locations):
+        return json_error("start location %d does not exist" % start)
+    if mode == "bfs":
+        order, levels = bfs_order(STORE.g, start)
+        structure = "ArrayDeque fringe (FIFO)"
+    else:
+        order = dfs_order(STORE.g, start)
+        levels = None
+        structure = "DynStack fringe (LIFO, recursion simulated)"
+    return jsonify({"mode": mode, "start": start, "order": order,
+                    "levels": levels, "structure": structure})
+
+@app.route("/api/search")
+def api_search():
+    q = request.args.get("q", "")
+    if not q.strip():
+        return jsonify({"q": q, "matches": []})
+    matches = STORE.trie.autocomplete(q.strip(), limit=8)
+    out = []
+    for name in matches:
+        for loc in STORE.locations:
+            if loc["name"] == name:
+                out.append(loc)
+                break
+    return jsonify({"q": q, "matches": out})
+
+@app.route("/api/sort-bench", methods=["POST"])
+def api_sort_bench():
+    data = request.get_json(silent=True) or {}
+    try:
+        size = int(data.get("size", 400))
+        range_max = int(data.get("range", 60))
+    except (TypeError, ValueError):
+        return json_error("size and range must be integers")
+    if size < 2 or size > 5000:
+        return json_error("size must be between 2 and 5000")
+    if range_max < 5 or range_max > 20000:
+        return json_error("range must be between 5 and 20000 (counting keys)")
+    arr = [random.randint(0, range_max - 1) for _ in range(size)]
+    bench = benchmark_all(arr)
+    ext = external_sort(arr[:80], chunk_size=10)
+    return jsonify({
+        "results": bench,
+        "input": {"size": size, "range": range_max},
+        "external": {"chunks": ext["chunks"], "passes": ext["passes"],
+                     "final": ext["final"], "comparisons": ext.get("comparisons_total")},
+    })
+
+@app.route("/api/hash-demo", methods=["GET", "POST"])
+def api_hash_demo():
+    data = request.get_json(silent=True) or {}
+    if request.args.get("key") and not data:
+        data["key"] = request.args.get("key")
+    raw = data.get("key")
+    if isinstance(raw, str):
+        raw = raw.strip().upper()
+        if raw.startswith("ORD-"):
+            try:
+                key = int(raw[4:])
+            except ValueError:
+                return json_error("order id suffix must be numeric")
+        elif raw.isdigit():
+            key = int(raw)
+        else:
+            return json_error("key must be an order number or ORD-<number>")
+    elif isinstance(raw, int):
+        key = raw
+    else:
+        return json_error("key must be integers-built (order number)")
+    fn = {1: hash_division, 2: hash_mid_square, 3: hash_folding,
+          "division": hash_division, "mid-square": hash_mid_square,
+          "folding": hash_folding}.get(data.get("function", 1))
+    if fn is None:
+        return json_error("function must be division | mid-square | folding")
+    chain = HashTableChaining(size=11, hashfn=fn)
+    open_lin = HashTableOpen(size=11, resolution="linear", hashfn=fn)
+    open_dbl = HashTableOpen(size=11, resolution="double", hashfn=fn)
+    for num in range(1000, 1000 + max(8, (key - 999))):
+        for table in (chain, open_lin, open_dbl):
+            table.insert(num, "ORD-%d" % num)
+    lookup = chain.lookup(key)[1]
+    open_lookup = open_lin.lookup(key)[1]
+    return jsonify({
+        "key": key,
+        "bucket": fn(key, 11),
+        "chains": chain.snapshot(),
+        "chain_collisions": chain.collisions,
+        "open_linear": open_lin.snapshot(),
+        "open_double": open_dbl.snapshot(),
+        "lookup_steps": {"chained": lookup, "open_linear": open_lookup},
+    })
+
+@app.route("/api/search-demo", methods=["POST"])
+def api_search_demo():
+    """Linear vs binary search step counts on a sorted id array."""
+    data = request.get_json(silent=True) or {}
+    try:
+        n = int(data.get("n", 50))
+        target = data.get("target")
+    except (TypeError, ValueError):
+        return json_error("n and target must be integers")
+    if n < 1 or n > 2000:
+        return json_error("n must be in [1, 2000]")
+    ids = [1000 + 7 * i for i in range(n)]
+    if target is None:
+        target = ids[random.randint(0, n - 1)]
+    else:
+        try:
+            target = int(target)
+        except (TypeError, ValueError):
+            return json_error("target must be an integer")
+    li, lsteps = linear_search(ids, target)
+    bi, bsteps = binary_search(ids, target)
+    return jsonify({"array": ids[:12] + ["..."], "n": n, "target": target,
+                    "linear": {"index": li, "steps": lsteps},
+                    "binary": {"index": bi, "steps": bsteps}})
