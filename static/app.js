@@ -2097,3 +2097,108 @@ function slimeShowFrame(i) {
   for (var e = 0; e < f[1].length; e++) {
     if (f[1][e] > dmax) dmax = f[1][e];
   }
+  if (dmax <= 0) dmax = 1;
+  var isFinal = i >= d.frames.length - 1;
+  var styles = {};
+  if (growth) {
+    for (e = 0; e < d.edges.length; e++) {
+      var uv = d.edges[e];
+      var key = window.DRO_edgeKey ? DRO_edgeKey(uv[0], uv[1])
+        : Math.min(uv[0], uv[1]) + "-" + Math.max(uv[0], uv[1]);
+      var relay = f[1][e] / dmax;
+      styles[key] = {
+        width: 2 + 10 * relay,
+        color: relay < 0.12 ? "#C9C4BC" : "#FFC53D"
+      };
+    }
+    if (isFinal) {
+
+      (d.surviving || []).forEach(function (seg) {
+        var key2 = window.DRO_edgeKey ? DRO_edgeKey(seg[0], seg[1])
+          : Math.min(seg[0], seg[1]) + "-" + Math.max(seg[0], seg[1]);
+        styles[key2] = { width: 5, color: "#FF5A36" };
+      });
+    }
+    slimeEngine("setSlimePath", null, false);
+  } else {
+    for (e = 0; e < d.edges.length; e++) {
+      var uv2 = d.edges[e];
+      var key3 = window.DRO_edgeKey ? DRO_edgeKey(uv2[0], uv2[1])
+        : Math.min(uv2[0], uv2[1]) + "-" + Math.max(uv2[0], uv2[1]);
+      var relay2 = f[1][e] / dmax;
+      styles[key3] = {
+        width: 2 + 10 * relay2,
+        color: relay2 < 0.12 ? "#C9C4BC" : "#FFC53D"
+      };
+    }
+    slimeEngine("setSlimePath", isFinal && d.path ? d.path : null,
+      isFinal && !!d.path);
+  }
+  slimeEngine("setEdgeStyles", styles);
+  $("#slime-iter").textContent = growth
+    ? "PAIR " + (i + 1) + " / " + d.frames.length
+    : "ITER " + f[0] + " / " + S.lab.finalIters;
+  var sl = $("#slime-step");
+  if (sl.value !== String(i)) sl.value = String(i);
+  $("#btn-slime-prev").disabled = i <= 0;
+  $("#btn-slime-next").disabled = i >= d.frames.length - 1;
+  $("#slime-phase").textContent = slimeCaption(i, d, growth);
+}
+
+function slimeCaption(i, d, growth) {
+  var isFinal = i >= d.frames.length - 1;
+  if (growth) {
+    if (isFinal) return "PRUNED - SURVIVING NETWORK IS ORANGE";
+    var pair = d.frames[i] && d.frames[i][2];
+    if (pair) return "FLOWS PAIR: " + slimeLocName(pair[0]) + " <-> " +
+      slimeLocName(pair[1]);
+    return "GROWTH - RANDOM PAIRS FEED THE MOLD";
+  }
+
+  if (i === 0) return "ALL ROADS OPEN";
+  if (isFinal && d.converged && d.within_1pct) return "PATH FOUND";
+  if (isFinal && !d.converged) return "MAX ITERATIONS - DIJKSTRA IS THE ANSWER";
+  var t = d.frames[i][0] / Math.max(1, S.lab.finalIters);
+  if (t < 0.45) return "SHORT ROADS GROW";
+  return "LONG ROADS STARVE";
+}
+
+function slimePlay() {
+  if (slimeReduced()) {
+    toast("REDUCED MOTION", "ANIMATION SKIPPED - USE PREV/NEXT/SLIDER.");
+    return;
+  }
+  var d = slimeMode() === "growth" ? S.lab.gdata : S.lab.data;
+  if (!d) return;
+  clearInterval(S.lab.timer);
+  if (S.lab.frame >= d.frames.length - 1) S.lab.frame = 0;
+  var btn = $("#btn-slime-play");
+  btn.textContent = "PAUSE";
+  btn.setAttribute("aria-pressed", "true");
+  var speed = parseInt($("#slime-speed").value, 10) || 1;
+  S.lab.timer = setInterval(function () {
+    var dd = slimeMode() === "growth" ? S.lab.gdata : S.lab.data;
+    if (!dd || S.lab.frame >= dd.frames.length - 1) {
+      slimeStop();
+      return;
+    }
+    slimeShowFrame(S.lab.frame + 1);
+  }, 320 / speed);
+}
+
+function slimeStop() {
+  clearInterval(S.lab.timer);
+  S.lab.timer = null;
+  var btn = $("#btn-slime-play");
+  if (btn) { btn.textContent = "PLAY"; btn.setAttribute("aria-pressed", "false"); }
+}
+
+function slimeOnShow() {
+
+  if (S.lab) {
+    if (S.lab.src !== null && !locById(S.lab.src)) S.lab.src = null;
+    if (S.lab.sink !== null && !locById(S.lab.sink)) S.lab.sink = null;
+    S.lab.gStops = (S.lab.gStops || []).filter(function (id) {
+      return !!locById(id);
+    });
+  }
