@@ -223,3 +223,97 @@ class PhysarumNetwork:
             visited[cur] = True
             path.append(cur)
         return path, km
+
+    def _log_schedule(self, total, frame_cap, dense_first=8):
+        """Iteration numbers 0..total sampled LOG-SPACED (dense early,
+        sparse late): the first dense_first iterations step by 1, then the
+        gaps grow ~45% per mark until the final iteration. Hard-capped at
+        frame_cap + 1 entries. Ascending output, no sort needed."""
+        if total <= 0:
+            return [0]
+        sched = [0]
+        it = 1
+        while it <= dense_first and it < total:
+            sched.append(it)
+            it += 1
+        factor = 1.45
+        while it * factor <= sched[-1]:
+            factor += 0.1
+        while it < total:
+            nxt = min(total, max(it + 1, int(it * factor) + 1))
+            if sched[-1] != nxt:
+                sched.append(nxt)
+            it = nxt
+        if sched[-1] != total:
+            sched.append(total)
+        if len(sched) > frame_cap + 1:
+            step = (len(sched) - 1) / float(frame_cap)
+            kept = []
+            for k in range(frame_cap):
+                kept.append(sched[int(round(k * step))])
+            kept[-1] = sched[-1]
+            sched = kept
+        return sched
+
+    def solve(self, src, dst, g=1.5, mu=1.0, dt=0.1, I0=1.0,
+              max_iter=500, conv_tol=1e-5, frame_cap=90, min_iter=60,
+              reset=True):
+        """Run the tube dynamics src -> dst and extract the path.
+
+        Returns {path, km, iterations, converged, converged_at, frames,
+                 ms, tie_note}. frames are LOG-SPACED [iteration, D] marks
+        (at most frame_cap + 1), each with its real iteration number.
+
+        Visualisation runs for at least MIN iterations even when the
+        stop-criterion passes earlier: convergence freezes the path, the
+        extra iterations just show the tubes settling. `converged_at`
+        holds the first iteration where max|dD| < conv_tol (None if that
+        never happened); `converged` is False in that case."""
+        if reset:
+            self.D = [1.0] * len(self.L)
+        t0 = time.perf_counter()
+        if src == dst:
+            return {"path": [src], "km": 0.0, "iterations": 0,
+                    "converged": True, "converged_at": 0,
+                    "frames": [[0, list(self.D)]],
+                    "ms": 0.0, "tie_note": None}
+        floor = max(1, min_iter)
+        snapshots = [[0, list(self.D)]]
+        p_prev = [0.0] * self.n
+        iterations = 0
+        converged_at = None
+        pf = None
+        conds = None
+        for it in range(1, max_iter + 1):
+            pf, _var_of, conds = self._pressures(src, dst, I0, p_prev)
+            p_prev = pf
+            _q, delta = self._adapt(pf, conds, g, mu, dt)
+            iterations = it
+            snapshots.append([it, list(self.D)])
+            if converged_at is None and delta < conv_tol:
+                converged_at = it
+            if converged_at is not None and it >= floor:
+                break
+        schedule = self._log_schedule(iterations, frame_cap)
+        frames = []
+        for mark in schedule:
+            frames.append(snapshots[mark])
+        path, km = self._walk(pf, conds, g, src, dst)
+        ms = (time.perf_counter() - t0) * 1000.0
+        return {"path": path, "km": round(km, 3),
+                "iterations": iterations,
+                "converged": converged_at is not None,
+                "converged_at": converged_at,
+                "conv_tol": conv_tol,
+                "frames": frames, "ms": round(ms, 3), "tie_note": None}
+
+    def run_pair(self, src, dst, g=1.5, mu=1.0, dt=0.1, I0=1.0, iters=6):
+        """Run a few adaptation iterations for ONE random demand pair while
+        KEEPING the current D state (no reset) -- this is the accumulate
+        phase of the network-growth experiment. D persists across calls."""
+        p_prev = [0.0] * self.n
+        for _ in range(max(1, iters)):
+            pf, _varof, conds = self._pressures(src, dst, I0, p_prev)
+            p_prev = pf
+            self._adapt(pf, conds, g, mu, dt)
+        return iters
