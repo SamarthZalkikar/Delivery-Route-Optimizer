@@ -674,3 +674,56 @@ def api_optimize_compare():
     return jsonify({"rows": rows, "stops": len(stops)})
 
 @app.route("/api/drivers/assign", methods=["POST"])
+def api_drivers_assign():
+    """Rotate the round-robin circular queue: the front driver is assigned
+    (popped) and re-enqueued behind everyone else."""
+    if STORE.drivers.is_empty():
+        return json_error("no drivers registered", 422)
+    driver = STORE.drivers.dequeue()
+    STORE.drivers.enqueue(driver)
+    return jsonify({"assigned": driver, "queue": STORE.drivers.snapshot()})
+
+def _lcg_next(state):
+    """Hand-written 32-bit LCG: x = (1103515245*x + 12345) mod 2^31.
+    state is a one-element list so the caller keeps sequencing."""
+    val = (1103515245 * state[0] + 12345) % 2147483648
+    state[0] = val
+    return val
+
+def physarum_dijkstra_ref(a, b):
+    """Exact Dijkstra twin for one pair; returns (path_km, hops, ms)."""
+    t0 = time.perf_counter()
+    hops, km, _dist = shortest_path(STORE.g, a, b)
+    ms = (time.perf_counter() - t0) * 1000.0
+    return None if hops is None else (km, hops, ms)
+
+def physarum_pair_leg(a, b):
+    """Physarum solve for one pair with the project's hash-table cache.
+
+    Cache value = [hops, km, ok, diff_pct, phys_ms] where ok means the tube
+    path matched Dijkstra's km within 1%. Falls back to Dijkstra hops when
+    the walk fails or misses the 1% bar (Dijkstra is the answer of record)."""
+    if a > b:
+        a, b = b, a
+    key = a * 100 + b
+    hit, _probe_steps = STORE.leg_cache.lookup(key)
+    if hit is not None:
+        return hit
+    res = STORE.pnet.solve(a, b)
+    ref = physarum_dijkstra_ref(a, b)
+    diff = 0.0
+    if ref is None:
+        val = [[], float("inf"), False, 0.0, res["ms"]]
+    elif res["path"] is not None:
+        dk = ref[0]
+        diff = abs(res["km"] - dk) / dk * 100 if dk > 0 else 0.0
+        if diff <= 1.0:
+            val = [res["path"], round(dk, 2), True, diff, res["ms"]]
+        else:
+            val = [ref[1], round(dk, 2), False, diff, res["ms"]]
+    else:
+        val = [ref[1], round(ref[0], 2), False, 0.0, res["ms"]]
+    STORE.leg_cache.insert(key, val)
+    return val
+
+@app.route("/api/physarum", methods=["POST"])
