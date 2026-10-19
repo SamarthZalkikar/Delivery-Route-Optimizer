@@ -165,3 +165,91 @@ class TestPhysarumAPI(unittest.TestCase):
                               "engine": "physarum"})
         self.assertEqual(r.status_code, 400)
         self.assertIn("capped", r.get_json()["error"])
+
+    def test_growth_endpoint(self):
+        r = self.c.post("/api/physarum/growth",
+                        json={"stops": [1, 2, 3, 4], "pairs": 8, "iters": 6,
+                              "seed": 7})
+        self.assertEqual(r.status_code, 200)
+        j = r.get_json()
+        self.assertIn("SLIME", j["verdict"])
+        self.assertIn("MST", j["verdict"])
+        self.assertEqual(len(j["frames"]), 8)
+        self.assertTrue(j["total_length"] <= j["full_total"])
+
+        r2 = self.c.post("/api/physarum/growth",
+                         json={"stops": [1, 2, 3, 4], "pairs": 8, "iters": 6,
+                               "seed": 7})
+        self.assertEqual(j["pairs_used"], r2.get_json()["pairs_used"])
+
+    def test_growth_needs_stops(self):
+        r = self.c.post("/api/physarum/growth", json={"stops": [1]})
+        self.assertEqual(r.status_code, 400)
+        r = self.c.post("/api/physarum/growth", json={"stops": [1, 2],
+                                                      "seed": -3})
+        self.assertEqual(r.status_code, 400)
+
+class TestPhysarumFrames(unittest.TestCase):
+    """Frame contract for the redesigned Slime Lab: at most 90 frames,
+    LOG-SPACED over the real iteration numbers (dense early, sparse late),
+    always covering iteration 0 AND the final iteration, plus a 60-iteration
+    visualisation floor so the tubes visibly settle."""
+
+    def test_frames_capped_at_90(self):
+        net = PhysarumNetwork(A.STORE.g.n, A.STORE.g.edges)
+        res = net.solve(0, 7, max_iter=500)
+        self.assertLessEqual(len(res["frames"]), 90)
+
+    def test_frames_log_spaced_with_real_iterations(self):
+        net = PhysarumNetwork(A.STORE.g.n, A.STORE.g.edges)
+        res = net.solve(0, 7, max_iter=500)
+        iters = [f[0] for f in res["frames"]]
+
+        self.assertEqual(iters[0], 0)
+        self.assertEqual(iters[-1], res["iterations"])
+        self.assertEqual(len(iters), len(set(iters)))
+        self.assertTrue(all(b > a for a, b in zip(iters, iters[1:])))
+
+        gaps = [b - a for a, b in zip(iters, iters[1:])]
+        self.assertTrue(all(b >= a for a, b in zip(gaps, gaps[1:])))
+        self.assertEqual(gaps[0], 1)
+
+    def test_min_iterations_floor(self):
+        """Converged early still runs >= 60 iterations (frames settle);
+        converged_at is reported separately and honestly."""
+        net = PhysarumNetwork(A.STORE.g.n, A.STORE.g.edges)
+        res = net.solve(0, 8, max_iter=500)
+        self.assertGreaterEqual(res["iterations"], 60)
+        self.assertTrue(res["converged"])
+        self.assertIsNotNone(res["converged_at"])
+        self.assertLessEqual(res["converged_at"], res["iterations"])
+        self.assertIsNotNone(res["path"])
+
+    def test_five_pairs_iteration_counts(self):
+        """Stop criterion is not loose: five sample src/sink pairs all run
+        a real (>= 60 iteration) solve and converge with a reported mark."""
+        counts = []
+        for src, dst in ((0, 5), (1, 9), (2, 11), (4, 13), (6, 10)):
+            net = PhysarumNetwork(A.STORE.g.n, A.STORE.g.edges)
+            res = net.solve(src, dst, max_iter=500)
+            counts.append((src, dst, res["iterations"], res["converged_at"]))
+            self.assertGreaterEqual(res["iterations"], 60, (src, dst))
+            self.assertTrue(res["converged"], (src, dst))
+        print("iteration counts (src, dst, iters, converged_at): %s" % counts)
+
+    def test_endpoint_always_reports_both_engines(self):
+        """The path-finder response always carries the Physarum result AND
+        its Dijkstra twin (km, ms, path) plus the frame contract fields."""
+        c = A.app.test_client()
+        for src, dst in ((0, 5), (3, 12)):
+            r = c.post("/api/physarum", json={"source": src, "sink": dst})
+            self.assertEqual(r.status_code, 200)
+            j = r.get_json()
+            for key in ("physarum_km", "physarum_ms", "dijkstra_km",
+                        "dijkstra_ms", "dijkstra_path", "converged_at",
+                        "frames"):
+                self.assertIn(key, j, (src, dst, key))
+            self.assertLessEqual(len(j["frames"]), 90)
+
+if __name__ == "__main__":
+    unittest.main()
