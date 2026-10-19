@@ -334,3 +334,56 @@ def order_public(order):
         "status": order["status"], "driver": order["driver"],
         "seq": order["seq"],
     }
+
+def validate_stops(raw_stops):
+    """Turn ["1", 9, ...] ids into ints; error string -> (list, None)."""
+    if not isinstance(raw_stops, list):
+        return None, "stops must be a JSON array of location ids"
+    stops = []
+    for s in raw_stops:
+        if not isinstance(s, int) or s < 0:
+            return None, "each stop must be a non-negative integer location id"
+        if s >= len(STORE.locations):
+            return None, "location %d does not exist" % s
+        if s == SEED_DEPOT_ID:
+            return None, "the depot cannot be its own stop"
+        if s in stops:
+            return None, "stop %d is duplicated" % s
+        stops.append(s)
+    return stops, None
+
+def validate_depot(raw_depot):
+    """Depot defaults to id 0; must be an existing location."""
+    if raw_depot is None:
+        return 0, None
+    if not isinstance(raw_depot, int) or raw_depot < 0 or \
+            raw_depot >= len(STORE.locations):
+        return None, "depot must be a valid location id"
+    return raw_depot, None
+
+SEED_DEPOT_ID = 0
+
+def route_geometry(depot, stops):
+    """Expand the stop sequence into full ROAD paths per hop (node id lists)
+    using the Dijkstra prevmap, so the map animation follows real streets."""
+    hops = []
+    prev_stop = depot
+    for stop in stops:
+        seg = []
+        u = stop
+        while u != prev_stop:
+            seg.append(u)
+            u = STORE.prevmap[prev_stop][u]
+        seg.reverse()
+        hops.append([prev_stop] + seg)
+        prev_stop = stop
+    back = []
+    u = depot
+    while u != stops[-1]:
+        back.append(u)
+        u = STORE.prevmap[stops[-1]][u]
+    back.reverse()
+    hops.append(back)
+    return hops
+
+@app.route("/")
