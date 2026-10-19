@@ -727,3 +727,221 @@ def physarum_pair_leg(a, b):
     return val
 
 @app.route("/api/physarum", methods=["POST"])
+def api_physarum():
+    """Single source->sink slime solve. Dijkstra rides along as ground
+    truth; the answer of record switches to Dijkstra if the tubes miss."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return json_error("body must be a JSON object")
+    src, err = validate_depot(data.get("source"))
+    if err:
+        return json_error(err)
+    dst, err = validate_depot(data.get("sink"))
+    if err:
+        return json_error(err)
+    if src == dst:
+        return json_error("source and sink must be two different locations")
+
+    def num(name, lo, hi, default):
+        v = data.get(name, default)
+        if v is None:
+            return float(default), None
+        if not isinstance(v, (int, float)) or isinstance(v, bool) \
+                or not (lo <= v <= hi):
+            return None, "%s must be a number in [%s, %s]" % (name, lo, hi)
+        return float(v), None
+
+    g, err = num("g", 0.25, 4.0, 1.5)
+    if err: return json_error(err)
+    mu, err = num("mu", 0.0, 3.0, 1.0)
+    if err: return json_error(err)
+    dt, err = num("dt", 0.01, 0.5, 0.1)
+    if err: return json_error(err)
+    I0, err = num("I0", 0.1, 10.0, 1.0)
+    if err: return json_error(err)
+
+    res = STORE.pnet.solve(src, dst, g=g, mu=mu, dt=dt, I0=I0)
+    ref = physarum_dijkstra_ref(src, dst)
+    if ref is None:
+        return json_error("source and sink are not connected", 422)
+    djk_km, djk_hops, djk_ms = ref
+    phys_km = res["km"]
+    path, km, note = res["path"], phys_km, None
+    within = res["path"] is not None and abs(phys_km - djk_km) / djk_km * 100 <= 1.0
+    if res["path"] is None:
+        path, km = djk_hops, round(djk_km, 2)
+        note = "TUBE WALK FAILED - USING DIJKSTRA PATH"
+    elif not within:
+        path, km = djk_hops, round(djk_km, 2)
+        note = "DID NOT CONVERGE TO OPTIMUM - USING DIJKSTRA PATH"
+    elif abs(phys_km - djk_km) / djk_km * 100 > 0.0:
+        km = round(djk_km, 2)
+        note = "TWO NEAR-EQUAL PATHS - SHORTER (DIJKSTRA) REPORTED"
+    return jsonify({
+        "ok": True, "source": src, "sink": dst,
+        "path": path, "km": round(km, 2),
+        "physarum_km": round(phys_km, 2),
+        "dijkstra_km": round(djk_km, 2),
+        "dijkstra_path": djk_hops,
+        "iterations": res["iterations"], "converged": res["converged"],
+        "converged_at": res.get("converged_at"),
+        "conv_tol": res.get("conv_tol"),
+        "within_1pct": within, "note": note,
+        "frames": res["frames"],
+        "edges": STORE.g.edges,
+        "physarum_ms": res["ms"], "dijkstra_ms": round(djk_ms, 3),
+        "tie_note": res["tie_note"],
+    })
+
+@app.route("/api/physarum/growth", methods=["POST"])
+def api_physarum_growth():
+    """ADVANCED (Tokyo-rail): demand pairs over the SELECTED stops drive a
+    few physarum iterations each; D accumulates, weak tubes are pruned and
+    the surviving network is compared to the Kruskal MST total."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return json_error("body must be a JSON object")
+    stops, err = validate_stops(data.get("stops"))
+    if err:
+        return json_error(err)
+    if len(stops) < 2:
+        return json_error("growth mode needs at least 2 stops")
+
+    def num(name, lo, hi, default):
+        v = data.get(name, default)
+        if not isinstance(v, (int, float)) or isinstance(v, bool)\
+                or not (lo <= v <= hi):
+            return None, "%s must be a number in [%s, %s]" % (name, lo, hi)
+        return float(v), None
+
+    pairs_n = data.get("pairs", 8)
+    if not isinstance(pairs_n, int) or isinstance(pairs_n, bool)\
+            or not (1 <= pairs_n <= 24):
+        return json_error("pairs must be an integer in [1, 24]")
+    iters = data.get("iters", 6)
+    if not isinstance(iters, int) or isinstance(iters, bool)\
+            or not (1 <= iters <= 30):
+        return json_error("iters must be an integer in [1, 30]")
+    seed = data.get("seed", 7)
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        return json_error("seed must be a non-negative integer")
+    prune, err = num("prune", 0.05, 0.6, 0.15)
+    if err: return json_error(err)
+    g, err = num("g", 0.25, 4.0, 1.5)
+    if err: return json_error(err)
+    mu, err = num("mu", 0.0, 3.0, 1.0)
+    if err: return json_error(err)
+    dt, err = num("dt", 0.01, 0.5, 0.1)
+    if err: return json_error(err)
+    I0, err = num("I0", 0.1, 10.0, 1.0)
+    if err: return json_error(err)
+
+    net = PhysarumNetwork(STORE.g.n, STORE.g.edges)
+    state = [seed % 2147483648]
+    n = len(STORE.locations)
+    frames, pairs_used = [], []
+    for t in range(pairs_n):
+        a = _lcg_next(state) % n
+        b = _lcg_next(state) % n
+        while b == a:
+            b = _lcg_next(state) % n
+        pairs_used.append([a, b])
+        net.run_pair(a, b, g=g, mu=mu, dt=dt, I0=I0, iters=iters)
+        frames.append({"pair": [a, b], "D": list(net.D)})
+
+    dmax = max(net.D)
+    thresh = prune * dmax
+    surviving, removed = [], 0
+    for e in range(len(net.D)):
+        if net.D[e] >= thresh:
+            surviving.append([net.edges[e][0], net.edges[e][1], net.L[e]])
+        else:
+            removed += 1
+    total_length = round(sum(seg[2] for seg in surviving), 1)
+
+    sub = Graph(len(STORE.locations))
+    for u, v, w in surviving:
+        sub.add_edge(u, v, w)
+    sub_dist, _prev = dijkstra_all_pairs(sub)
+    INF = float("inf")
+    sd, cnt = 0.0, 0
+    for i in range(len(stops)):
+        for j in range(i + 1, len(stops)):
+            d = sub_dist[stops[i]][stops[j]]
+            if d != INF:
+                sd += d
+                cnt += 1
+    avg_stop_path = round(sd / cnt, 2) if cnt else None
+
+    mst_edges, mst_total = kruskal_mst(STORE.g)
+    full_total = round(sum(r["w"] for r in STORE.roads), 1)
+    return jsonify({
+        "ok": True, "seed": seed, "pairs_used": pairs_used,
+        "frames": frames, "edges": STORE.g.edges,
+        "surviving": surviving, "removed": removed,
+        "prune": round(prune, 3),
+        "total_length": total_length,
+        "avg_stop_path": avg_stop_path,
+        "mst_edges": mst_edges,
+        "mst_total": None if mst_total is None else round(mst_total, 1),
+        "full_total": full_total,
+        "verdict": ("SLIME %.1f KM VS MST %.1f KM (FULL GRAPH %.1f KM)"
+                    % (total_length, mst_total, full_total)
+                    if mst_total is not None else "SLIME %.1f KM (GRAPH DISCONNECTED)"
+                    % total_length),
+    })
+
+@app.route("/api/cost-model", methods=["POST"])
+def api_cost_model():
+    """Polynomial transport-cost panel: A d^2 + B d + C evaluated on d."""
+    data = request.get_json(silent=True) or {}
+    try:
+        a = float(data.get("a", 0.8))
+        b = float(data.get("b", 1.2))
+        c = float(data.get("c", 35))
+        d = float(data.get("d", 0))
+    except (TypeError, ValueError):
+        return json_error("a, b, c, d must be numbers")
+    poly = Polynomial([(a, 2), (b, 1), (c, 0)])
+    return jsonify({"terms": poly.terms(), "display": poly.to_display(),
+                    "distance": d, "cost": round(poly.evaluate(d), 2)})
+
+@app.route("/api/orders", methods=["POST"])
+def api_orders_add():
+    clean, err = validate_order_payload(request.get_json(silent=True))
+    if err:
+        return err
+    order = STORE.create_order(**clean)
+    return jsonify({"ok": True, "order": order_public(order)}), 201
+
+@app.route("/api/orders/undo", methods=["POST"])
+def api_orders_undo():
+    if STORE.undo.is_empty():
+        return json_error("nothing to undo", 422)
+    action = STORE.undo.pop()
+    if action[0] == "ADD":
+        STORE.remove_order(action[1])
+        return jsonify({"ok": True, "undone": "added %s" % action[1]})
+    if action[0] == "DISPATCH":
+        for o in STORE.orders:
+            if o["id"] == action[1]:
+                o["status"] = "PENDING"
+                o["driver"] = None
+                if o["number"] in STORE.deliveries:
+                    STORE.deliveries.remove(o["number"])
+                return jsonify({"ok": True, "undone": "dispatch %s" % action[1]})
+        return json_error("order missing from store", 500)
+    if action[0] == "ADD_LOC":
+
+        lid = len(STORE.locations) - 1
+        STORE.locations = STORE.locations[:lid]
+        STORE.roads = [r for r in STORE.roads
+                       if r["u"] != lid and r["v"] != lid]
+        STORE.g.adjacency = STORE.g.adjacency[:lid]
+        STORE.g.n = lid
+        STORE.g.edges = [e for e in STORE.g.edges if e[0] < lid and e[1] < lid]
+        STORE._rebuild_matrices()
+        return jsonify({"ok": True, "undone": "location #%d" % lid})
+    return json_error("unknown undo entry", 500)
+
+@app.route("/api/orders/dispatch", methods=["POST"])
