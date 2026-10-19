@@ -376,3 +376,101 @@
     </div>
 
   </section>
+
+  <section class="grid grid-12 hidden" id="tab-slime" role="tabpanel" aria-labelledby="tabbtn-slime">
+    <div class="tab-loading" data-loading hidden>LOADING...</div>
+
+    <div class="slime-grid">
+
+      <div class="panel slime-map-panel">
+        <div class="panel-title"><span>SLIME RENDER - CITY MAP</span><span class="winbtns">[ _ ][ X ]</span></div>
+        <div class="panel-body">
+          <div class="slime-map-host" id="slime-map-host"
+               aria-label="Slime Lab map, same city graph as Dispatch"></div>
+          <div id="slime-map-note" class="slime-map-note hidden"></div>
+          <div id="slime-phase" class="slime-phase" aria-live="polite">ALL ROADS OPEN</div>
+          <div class="row wrap slime-playbar">
+            <button class="btn btn-sm" id="btn-slime-play" aria-pressed="false" disabled>PLAY</button>
+            <button class="btn btn-sm" id="btn-slime-prev" disabled>PREV</button>
+            <button class="btn btn-sm" id="btn-slime-next" disabled>NEXT</button>
+            <input type="range" class="slime-range" id="slime-step" min="0" max="0" step="1" value="0"
+                   aria-label="Frame scrubber">
+            <label class="lbl" for="slime-speed">SPEED</label>
+            <select class="sel sel-sm" id="slime-speed" aria-label="Playback speed">
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+            <span id="slime-iter" class="mono-num">ITER -</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel slime-ctl-panel">
+        <div class="panel-title"><span>SLIME LAB CONTROL</span><span class="winbtns">[ _ ][ X ]</span></div>
+        <div class="panel-body">
+          <div class="modeswitch slime-modeswitch" role="group" aria-label="Slime lab mode">
+            <button class="btn" id="btn-slime-path" aria-pressed="true">PATH FINDER</button>
+            <button class="btn" id="btn-slime-growth" aria-pressed="false">NETWORK GROWTH</button>
+          </div>
+
+          <div id="slime-mode-path">
+            <div id="slime-status" class="slime-status" aria-live="polite">CLICK A NODE TO SET SOURCE</div>
+            <div class="slime-ends">
+              <span class="slime-end-badge slime-src-badge" id="slime-src-chip">SRC: -</span>
+              <button class="btn btn-sm" id="btn-slime-swap">SWAP</button>
+              <button class="btn btn-sm" id="btn-slime-clear">CLEAR</button>
+              <span class="slime-end-badge slime-snk-badge" id="slime-snk-chip">SNK: -</span>
+            </div>
+            <div class="slime-params-grid" role="group" aria-label="Parameters">
+              <label class="lbl" for="slime-mu">DECAY MU <span id="slime-mu-val">1.0</span></label>
+              <input type="range" class="slime-range" id="slime-mu" min="0.5" max="2" step="0.05" value="1">
+              <label class="lbl" for="slime-dt">STEP DT <span id="slime-dt-val">0.1</span></label>
+              <input type="range" class="slime-range" id="slime-dt" min="0.02" max="0.4" step="0.01" value="0.1">
+              <label class="lbl" for="slime-i0">SOURCE FLOW I0 <span id="slime-i0-val">1.0</span></label>
+              <input type="range" class="slime-range" id="slime-i0" min="0.2" max="3" step="0.1" value="1">
+              <label class="lbl" for="slime-exp">EXPONENT G <span id="slime-exp-val">1.5</span></label>
+              <input type="range" class="slime-range" id="slime-exp" min="1" max="3" step="0.25" value="1.5">
+            </div>
+            <div class="row wrap">
+              <button class="btn" id="btn-slime-run" disabled>RUN</button>
+              <button class="btn btn-sm" id="btn-slime-reset">RESET DEFAULTS</button>
+              <label class="chk"><input type="checkbox" id="slime-show-djk" checked> SHOW DIJKSTRA</label>
+            </div>
+            <div id="slime-result" class="slime-result slime-empty"
+                 aria-label="Path finder result">RUN A SOLVE: CLICK SRC, THEN SNK, PRESS RUN</div>
+          </div>
+
+          <div id="slime-mode-growth" class="hidden">
+            <div id="slime-g-empty" class="growth-empty hidden" role="status">
+              NO STOPS SELECTED - PICK STOPS IN DISPATCH OR CLICK NODES HERE
+            </div>
+            <div id="slime-g-stops" class="slime-status">STOPS: -</div>
+            <div class="slime-params-grid" role="group" aria-label="Growth parameters">
+              <label class="lbl" for="slime-seed">SEED</label>
+              <div class="stepper">
+                <input type="number" id="slime-seed" class="in slime-number" min="0" value="7">
+                <button class="btn btn-sm" id="slime-seed-random" aria-label="Random seed">RANDOM</button>
+              </div>
+              <label class="lbl" for="slime-pairs">PAIRS PER STEP <span id="slime-pairs-val">8</span></label>
+              <div class="stepper">
+                <button class="btn btn-sm square" id="slime-pairs-minus" aria-label="Fewer pairs">-</button>
+                <input type="number" id="slime-pairs" class="in slime-number" min="1" max="24" value="8" aria-label="Pairs per step">
+                <button class="btn btn-sm square" id="slime-pairs-plus" aria-label="More pairs">+</button>
+              </div>
+              <label class="lbl" for="slime-prune">PRUNE THRESHOLD <span id="slime-prune-val">0.15</span></label>
+              <input type="range" class="slime-range" id="slime-prune" min="0.05" max="0.5" step="0.05" value="0.15">
+            </div>
+            <div class="row wrap">
+              <button class="btn" id="btn-slime-growth-run">RUN GROWTH</button>
+              <label class="chk"><input type="checkbox" id="slime-show-mst" checked> SHOW MST</label>
+            </div>
+            <div id="slime-result-g" class="slime-result slime-empty"
+                 aria-label="Growth result">PRESS RUN GROWTH (NEEDS AT LEAST 2 STOPS)</div>
+            <p class="lab-note dim">THE MST IS THE CHEAPEST WAY TO CONNECT THE STOPS;
+              THE SLIME NETWORK TRADES EXTRA LENGTH FOR SHORTER PATHS BETWEEN STOPS
+              (LIKE THE TOKYO RAIL EXPERIMENT).</p>
+          </div>
+        </div>
+      </div>
+    </div>
