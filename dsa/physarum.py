@@ -147,3 +147,79 @@ class PhysarumNetwork:
         for k in range(m):
             pf[node_of[k]] = sol[k]
         return pf, var_of, conds
+
+    def _adapt(self, pf, conds, g, mu, dt):
+        """flux Q + adaptation: D += dt*(|Q|^g/(1+|Q|^g) - mu*D). O(E)."""
+        q = [0.0] * len(self.D)
+        newD = list(self.D)
+        max_delta = 0.0
+        for e in range(len(self.D)):
+            a, b = self.edges[e][0], self.edges[e][1]
+            qe = conds[e] * (pf[a] - pf[b])
+            q[e] = qe
+            qa = abs(qe)
+            gpow = qa ** g
+            grow = gpow / (1.0 + gpow)
+            d = self.D[e] + dt * (grow - mu * self.D[e])
+            if d < 1e-9:
+                d = 1e-9
+            newD[e] = d
+            dd = abs(d - self.D[e])
+            if dd > max_delta:
+                max_delta = dd
+        self.D = newD
+        return q, max_delta
+
+    def _walk(self, pf, conds, g_power_unused, src, dst):
+        """Greedy max-flux walk source -> sink over surviving tubes.
+
+        Surviving = D_e >= 1e-3 * max(D). From the current node we take the
+        neighbour with the largest POSITIVE outward flux and never revisit.
+        Deterministic tie-break: equal flux -> shorter edge, then lower id.
+        Two near-equal routes may flip the choice; the caller compares the
+        walk km against Dijkstra and prefers the shorter, noting the tie."""
+        if src == dst:
+            return [src]
+        dmax = max(self.D)
+        thresh = 1e-3 * dmax
+        visited = [False] * self.n
+        visited[src] = True
+        cur = src
+        km = 0.0
+        path = [src]
+        L = self.L
+        guard = self.n * 2 + 2
+        while cur != dst:
+            if guard <= 0:
+                return None, 0.0
+            guard -= 1
+            best = None
+            for t in range(len(self.nbr[cur])):
+                j = self.nbr[cur][t]
+                e = self.nbr_e[cur][t]
+                if visited[j] or self.D[e] < thresh:
+                    continue
+
+                fl = conds[e] * (pf[cur] - pf[j])
+                if fl <= 0:
+                    continue
+                cand = (fl, j, e)
+                if best is None:
+                    best = cand
+                else:
+
+                    if fl > best[0] + 1e-12:
+                        best = cand
+                    elif abs(fl - best[0]) <= 1e-12 and L[e] < L[best[2]]:
+                        best = cand
+                    elif abs(fl - best[0]) <= 1e-12 and L[e] == L[best[2]] \
+                            and j < best[1]:
+                        best = cand
+            if best is None:
+                return None, 0.0
+            e = best[2]
+            km += L[e]
+            cur = best[1]
+            visited[cur] = True
+            path.append(cur)
+        return path, km
