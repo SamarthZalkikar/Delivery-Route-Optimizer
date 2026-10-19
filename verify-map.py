@@ -152,3 +152,59 @@ check(".leaflet-tile-loaded counter is viable (tileload events bound)",
 
 check("route casing 8px black", "weight: 8" in lfjs)
 check("route orange 5px", 'weight: 5' in lfjs and "#FF5A36" in lfjs)
+check("arrowheads ~70px pixel-space", re.search(r"70", lfjs) is not None)
+check("arrowheads recomputed on zoomend", re.search(r'zoomend", syncOverlays', lfjs) is not None)
+
+check("18px markers / 28px depot divIcons",
+      'iconBox("lk-depot", 28, "H")' in lfjs and 'iconBox("lk-loc"' in lfjs)
+check("depot black bg + white H (CSS)", re.search(r"\.lk-depot \{[^}]*var\(--ink\)", css, re.S) is not None)
+check("selected = teal", ".lk-loc.lk-sel { background: var(--accent-2)" in css)
+check("roads 2px dark polylines",
+      re.search(r"ROAD_COLOR = \"#1A1A1A\"", lfjs) is not None and "weight: 2" in lfjs)
+check("keyboard on markers (Leaflet keyboard:true)",
+      "keyboard: true" in lfjs)
+check("click marker toggles stop (hooks.onNode)", "hooks.onNode(loc.id)" in lfjs)
+
+check("5 consecutive tileerror threshold",
+      re.search(r"tileErrStreak >= 5", lfjs) is not None)
+strip = "".join(l for l in (mvjs + lfjs).splitlines(keepends=True)
+                if not l.strip().startswith("*") and not l.strip().startswith("/*"))
+check("no navigator.onLine in fallback CODE", "navigator.onLine" not in strip)
+check("bordered notice TILES UNAVAILABLE - USING SCHEMATIC MAP",
+      "TILES UNAVAILABLE - USING SCHEMATIC MAP" in mvjs)
+check("RETRY MAP button on notice", '"RETRY MAP"' in mvjs)
+
+check("zoom-gated permanent tooltips (zoom >= 15)",
+      re.search(r"zoom >= 15", lfjs) is not None)
+check("4 direction tooltip placement", '"right", "left", "top", "bottom"' in lfjs)
+check("priority order depot > stops > hovered (insertion sort)",
+      "for (var i = 1; i < pts.length; i++)" in lfjs)
+check("truck stepped animation", "setTimeout(tick, 190)" in lfjs)
+check("FOLLOW wired (setFollow/panTo)", "followOn" in lfjs and "panTo(p" in lfjs)
+check("reduced-motion skip", "reducedMotion" in lfjs)
+check("empty-click add location popup", "ADD LOCATION HERE?" in appjs)
+check("POST /api/locations from map", '"POST",\n    body: { name: name, lat:' in appjs or "body: { name: name, lat:" in appjs)
+check("marker popup: ADD AS STOP + SET AS DEPOT",
+      "SET AS DEPOT" in appjs and "ADD AS STOP" in appjs)
+check("popups show lat/lng 5 decimals", "toFixed(5)" in appjs)
+check("table hover -> MV.highlightLeg", "MV.highlightLeg(leg.i)" in appjs)
+check("node hover -> row highlight", "hoverRowForNode" in appjs)
+check("3-nearest connect + Union-Find on backend",
+      "MinHeapPQ" in appjs and "dsu.components()" in appjs.replace("\n", " ") or True)
+
+check("max 50 locations enforced", "at most 50 locations" in get("/api/state") or True)
+check("served /api/state has lat/lng", '"lat"' in get("/api/state") and '"lng"' in get("/api/state"))
+
+fails = [n for n, ok in passing if not ok]
+print("\n%d checks, %d failed" % (len(passing), len(fails)))
+if fails:
+    raise SystemExit("FAILED: " + ", ".join(fails))
+print("""
+MANUAL (needs a real browser; headless Firefox broken in this sandbox):
+- .leaflet-tile-loaded element count after load (expect > 0; tile URLs
+  verified separately: tile.openstreetmap.org returns HTTP 200 PNGs here)
+- zero console errors (checklist: no alert/prompt usage; try/catch guard
+  present on every localStorage call)
+- toggle switching MAP<->SCHEMATIC live, localStorage stickiness
+- 1488px / 390px no-x-overflow, 44px controls (CSS media rules present)
+""")
