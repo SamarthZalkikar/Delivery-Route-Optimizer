@@ -75,3 +75,80 @@ check("SLIME2 is a separate instance (dispatch never re-parented)",
       "window.SLIME2 = window.DRO_createSlimeMap" in appjs and
       'id="slime-map-host"' in html and
       html.index('id="slime-map-host"') > html.index('id="tab-slime"'))
+check("tab show re-mounts: invalidateSize + re-fit",
+      "window.SLIME2.invalidate()" in appjs and
+      "window.SLIME2.fit()" in appjs)
+check("mode switch [ PATH FINDER ][ NETWORK GROWTH ] one visible at a time",
+      'id="btn-slime-path"' in html and 'id="btn-slime-growth"' in html and
+      "slimeSetMode" in appjs and
+      'classList.toggle("hidden", !isPath)' in appjs)
+check("old ADVANCED panel + OPEN CITY MAP button are gone",
+      'id="btn-slime-map"' not in html and "slime-adv" not in html and
+      "ADVANCED" not in html.split('id="tab-slime"')[1].split('id="tab-dsamap"')[0])
+check("status line always says what to do next",
+      "CLICK A NODE TO SET SOURCE" in appjs and 'id="slime-status"' in html)
+check("SWAP + CLEAR buttons wired",
+      'id="btn-slime-swap"' in html and 'id="btn-slime-clear"' in html and
+      "function slimeSwap" in appjs and "function slimeClearAll" in appjs)
+check("RUN starts disabled until both endpoints set",
+      'id="btn-slime-run"' in html and "slimeUpdateRun" in appjs and
+      "#tab-slime .btn:disabled" in css and
+      "opacity: 1;" in css.split("#tab-slime .btn:disabled")[1][:200])
+check("playback: PREV/NEXT text labels, speed select 1x/2x/4x, ITER readout",
+      ">PREV</button>" in html and ">NEXT</button>" in html and
+      'id="slime-speed"' in html and ">4x</option>" in html and
+      'id="slime-iter"' in html)
+check("stale endpoint ids degrade, never crash the slime tab",
+      "function slimeLocName" in appjs and
+      "slimeLocName(S.lab.src)" in appjs and
+      "!locById(S.lab.src)" in appjs)
+check("phase captions driven by the current frame",
+      "ALL ROADS OPEN" in appjs and "SHORT ROADS GROW" in appjs and
+      "LONG ROADS STARVE" in appjs and "PATH FOUND" in appjs and
+      'id="slime-phase"' in html)
+check("SHOW DIJKSTRA toggle draws the dashed overlay",
+      'id="slime-show-djk"' in html and "slimeOverlayDijkstra" in appjs and
+      "function setOverlay" in lfjs)
+check("growth: empty state + click-nodes-here + seed random + prune",
+      "NO STOPS SELECTED" in html and 'id="slime-g-empty"' in html and
+      'id="slime-seed-random"' in html and 'id="slime-prune"' in html and
+      "slimeGrowthStops" in appjs)
+check("growth: SHOW MST overlay + explanation sentence",
+      'id="slime-show-mst"' in html and "slimeOverlayMst" in appjs and
+      "TOKYO RAIL EXPERIMENT" in html and '"mst_edges"' in open("app.py").read())
+check("retro range inputs + hidden spinners are scoped to the slime tab",
+      '#tab-slime input[type="range"]::-webkit-slider-thumb' in css and
+      '#tab-slime input[type="number"]::-webkit-inner-spin-button' in css)
+check("slime grid stacks under 900px with the map first",
+      ".slime-grid { grid-template-columns: 1fr; }" in css and
+      html.index("slime-map-panel") < html.index("slime-ctl-panel"))
+physpy = open("dsa/physarum.py").read()
+apppy = open("app.py").read()
+check("backend: log-spaced frames, <= 90 cap, 60-iter floor, honest converged_at",
+      "_log_schedule" in physpy and "frame_cap=90" in physpy and
+      "min_iter=60" in physpy and '"converged_at"' in apppy and
+      '"converged_at": res.get("converged_at")' in apppy)
+check("backend: growth prune param + MST edges in the response",
+      '"prune"' in apppy and '"mst_edges": mst_edges' in apppy)
+
+check("FIT + FOLLOW controls present",
+      'id="btn-mapfit"' in html and 'id="btn-mapfollow"' in html)
+check("DEFAULT mode is MAP (localStorage fallback)",
+      re.search(r'safeGet\(STORE_KEY, "map"\)', mvjs) is not None)
+check("mode choice stored via try/catch localStorage",
+      "safeSet" in mvjs and "try {" in mvjs)
+check("OSM tile layer URL exact",
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png' in lfjs)
+check("maxZoom 18 on tiles", "var TILE_MAX_ZOOM = 18" in lfjs)
+check("attribution text (c) OpenStreetMap contributors",
+      'attribution: "(c) OpenStreetMap contributors"' in lfjs)
+check("metric scale control",
+      re.search(r"L\.control\.scale\(\{ metric: true", lfjs) is not None)
+check("tile filter grayscale(.85) sepia(.35) contrast(1.05)",
+      "grayscale(.85) sepia(.35) contrast(1.05)" in css)
+check("4px black map border", "border: 4px solid var(--ink)" in css)
+check(".leaflet-tile-loaded counter is viable (tileload events bound)",
+      'on("tileload"' in lfjs)
+
+check("route casing 8px black", "weight: 8" in lfjs)
+check("route orange 5px", 'weight: 5' in lfjs and "#FF5A36" in lfjs)
